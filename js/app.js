@@ -1,298 +1,244 @@
 // QRScanner
 class QRScanner {
-  constructor(regionId, onSuccess, onFailure, timeoutMs = 30000) {
+  constructor(regionId, onSuccess, onFail, timeoutMs = 30000, maxAttempts = 15) {
     this.regionId = regionId;
     this.onSuccess = onSuccess;
-    this.onFailure = onFailure;
+    this.onFail = onFail;
     this.timeoutMs = timeoutMs;
+    this.maxAttempts = maxAttempts;
 
-    this.qrCodeScanner = null;
-    this.qrTimeout = null;
-    this._countdownInterval = null;
+    this.qr = null;
     this.scanning = false;
-
-    this.failedScans = 0;
-    this.maxFailedScans = 15;
+    this.timeoutHandle = null;
+    this.counterHandle = null;
+    this.countdownEl = document.getElementById("cams-timeout-counter");
+    this.restartBtn = document.getElementById("restart-scan-btn");
+    this.manualBtn = document.getElementById("btn-manual");
+    this.attemptCount = 0;
+    this.isVerifying = false;
   }
 
   async start() {
+    if (this.scanning) return;
+    const region = document.getElementById(this.regionId);
+    if (!region) {
+      ToastManager.show("Elemen region QR tidak ditemukan", "error");
+      return;
+    }
+
+    this.qr = new Html5Qrcode(this.regionId);
+    this.scanning = true;
+    this.attemptCount = 0;
+    this.isVerifying = false;
+
+    // Tampilkan counter
+    this.showCountdown(this.timeoutMs / 1000);
+
     try {
-      const region = document.getElementById(this.regionId);
-      if (!region || region.offsetParent === null) {
-        console.warn("QRScanner: Region tidak terlihat, batal start.");
-        return;
-      }
-
-      if (this.qrCodeScanner) {
-        await this.clear();
-      }
-
-      // Reset UI
-      this.failedScans = 0;
-      document.getElementById("restart-scan-btn")?.classList.add("dis-none");
-      document.getElementById("cams-timeout-counter")?.classList.remove("dis-none");
-      document.getElementById("btn-manual-code")?.classList.add("dis-none");
-
-      this.qrCodeScanner = new Html5Qrcode(this.regionId, {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
-      });
-
-      this.scanning = true;
-      ToastManager.show("Membuka kamera...", "info");
-
-      await this.qrCodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 30 },
-        async (decodedText) => {
-          if (!this.scanning) return;
-
-          this.resetTimeout();
-          this.onSuccess(decodedText);
-        },
-        () => {
-          // abaikan decoding errors
-        }
+      await this.qr.start(
+        { facingMode: "user" },
+        { fps: 40, qrbox: 290 },
+        (decodedText) => this._handleScan(decodedText),
+        (err) => { /* optional: handle error per frame */ }
       );
 
-      this.resetTimeout();
-      this.startCountdown();
-
-    } catch (err) {
-      console.error("QRScanner: Gagal inisialisasi kamera", err);
-      ToastManager.show("Gagal membuka kamera", "error");
-      this.onFailure("camera-error");
-    }
-  }
-
-  handleFailedScan() {
-    this.failedScans++;
-    console.warn(`Scan gagal ke-${this.failedScans}`);
-
-    if (this.failedScans >= this.maxFailedScans) {
+      // Timeout global
+      this.timeoutHandle = setTimeout(() => this.stop(), this.timeoutMs);
+    } catch (e) {
+      ToastManager.show("Gagal mengakses kamera: " + e.message, "error");
       this.stop();
-      const manualBtn = document.getElementById("btn-manual-code");
-      if (manualBtn) manualBtn.classList.remove("dis-none");
     }
-  }
-
-  resetTimeout() {
-    if (this.qrTimeout) clearTimeout(this.qrTimeout);
-
-    this.qrTimeout = setTimeout(async () => {
-      if (!this.scanning) return;
-
-      await this.stop();
-      await this.clear();
-
-      const counterEl = document.getElementById("cams-timeout-counter");
-      if (counterEl) counterEl.classList.add("dis-none");
-
-      ToastManager.show("Waktu habis.<br>Tekan &nbsp; <i class='fas fa-qrcode'></i> &nbsp; untuk ulangi.", "warning");
-      document.getElementById("restart-scan-btn")?.classList.remove("dis-none");
-      this.onFailure("timeout");
-    }, this.timeoutMs);
-
-    this.startCountdown();
   }
 
   async stop() {
     this.scanning = false;
+    this.clearCountdown();
+    if (this.qr && this.qr.getState() === Html5QrcodeScannerState.SCANNING) {
+      await this.qr.stop();
+      this.qr.clear();
+    }
+    this.qr = null;
+  }
 
-    if (this.qrTimeout) {
-      clearTimeout(this.qrTimeout);
-      this.qrTimeout = null;
+  async _handleScan(decodedText) {
+    if (this.isVerifying) return;
+
+    this.attemptCount++;
+    let data;
+
+    try {
+      data = JSON.parse(atob(decodedText));
+    } catch (e) {
+      ToastManager.show("QR tidak valid (bukan base64 JSON)", "warning");
+      return;
     }
 
-    if (this._countdownInterval) {
-      clearInterval(this._countdownInterval);
-      this._countdownInterval = null;
-    }
+    this.isVerifying = true;
+    const result = await this.onSuccess(data, decodedText);
 
-    const counterEl = document.getElementById("cams-timeout-counter");
-    if (counterEl) counterEl.classList.add("dis-none");
-
-    if (this.qrCodeScanner) {
-      try {
-        await this.qrCodeScanner.stop();
-      } catch (err) {
-        console.warn("QRScanner: Error saat stop", err);
+    if (!result) {
+      this.isVerifying = false;
+      if (this.attemptCount >= this.maxAttempts) {
+        this.showManualButton();
+        this.stop();
       }
+    } else {
+      this.clearCountdown();
     }
   }
 
-  async clear() {
-    if (this.qrCodeScanner) {
-      try {
-        await this.qrCodeScanner.clear();
-      } catch (err) {
-        console.warn("QRScanner: Error saat clear", err);
-      }
-      this.qrCodeScanner = null;
+  showManualButton() {
+    if (this.manualBtn) {
+      this.manualBtn.classList.remove("dis-none");
     }
   }
 
-  startCountdown() {
-    const counterEl = document.getElementById("cams-timeout-counter");
-    if (!counterEl) return;
+  showCountdown(seconds) {
+    if (!this.countdownEl) return;
 
-    if (this._countdownInterval) clearInterval(this._countdownInterval);
+    this.countdownEl.classList.remove("dis-none");
+    this.countdownEl.textContent = seconds;
 
-    let remaining = Math.floor(this.timeoutMs / 1000);
-    counterEl.innerText = remaining;
-
-    this._countdownInterval = setInterval(() => {
-      remaining--;
-      if (remaining <= 0) {
-        clearInterval(this._countdownInterval);
-        this._countdownInterval = null;
-        counterEl.classList.add("dis-none");
-      } else {
-        counterEl.innerText = remaining + "s";
+    this.counterHandle = setInterval(() => {
+      seconds--;
+      this.countdownEl.textContent = seconds;
+      if (seconds <= 0) {
+        this.clearCountdown();
+        this.stop();
       }
     }, 1000);
   }
+
+  clearCountdown() {
+    if (this.counterHandle) {
+      clearInterval(this.counterHandle);
+      this.counterHandle = null;
+    }
+    if (this.countdownEl) {
+      this.countdownEl.classList.add("dis-none");
+    }
+    if (this.timeoutHandle) {
+      clearTimeout(this.timeoutHandle);
+      this.timeoutHandle = null;
+    }
+  }
 }
+
 
 
 
 
 class AppController {
-  constructor(serverUrl = "", enableOffline = false) {
+  constructor(serverUrl = "") {
     this.serverUrl = serverUrl;
+    this.qrScanner = new QRScanner("qr-reader", this.handleQRScan.bind(this), this.handleQRFail.bind(this));
     this.state = null;
-    this.retryLimit = 3;
-    this.retryCount = 0;
-    this.invalidQRCount = 0; // Tambahkan ini
 
-    this.qrScanner = new QRScanner(
-      "qr-reader",
-      this.handleQRScan.bind(this),
-      this.handleQRFail.bind(this),
-      15000 // timeout 15 detik misalnya
-    );
-
-    this.faceRecognizer = new FaceRecognizer("video", "canvas");
-    this.request = new RequestManager(enableOffline);
+    // Tombol manual
+    const btnManual = document.getElementById("btn-manual");
+    if (btnManual) {
+      btnManual.addEventListener("click", () => this.goToManualInput());
+    }
 
     this.init();
   }
 
   init() {
-    document.getElementById("restart-scan-btn").addEventListener("click", () => {
-      document.getElementById("restart-scan-btn").classList.add("dis-none");
-      this.qrScanner.start();
-    });
-
-    this.changeContent("camera");
+    this.startScan();
   }
 
-  updateQRResult(data) {
-    const el = document.getElementById("result");
-    if (el) {
-      el.textContent = data;
-    }
-  }
-
-  changeContent(id) {
-    document.querySelectorAll(".content").forEach(el => el.classList.add("hidden"));
-    const content = document.getElementById(id);
-    if (content) content.classList.remove("hidden");
-    this.state = id;
-
-    if (id === "camera") {
-      document.getElementById("camera-content")?.classList.remove("hidden");
-      this.qrScanner.start();
-    } else {
-      this.qrScanner.stop();
-      this.faceRecognizer.stop();
-    }
-    this.resetInvalidQRCount()
-  }
-
-  resetInvalidQRCount() {
-    this.invalidQRCount = 0;
-    const manualBtn = document.getElementById("code-manual-btn");
-    if (manualBtn) manualBtn.classList.add("dis-none");
-  }
-
-  async handleQRScan(data) {
-    console.log("QR scanned:", data);
-    ToastManager.show("Memvalidasi QR...", "info");
-    this.updateQRResult(data); // Tampilkan QR ke result
-    return 
+  async startScan() {
     try {
-      const response = await this.request.get(`${this.serverUrl}/get-data?qr=${encodeURIComponent(data)}`);
-      const userData = response.data;
-
-      if (userData && userData.faceImage) {
-        this.invalidQRCount = 0; // Reset counter kalau valid
-        this.changeContent("face");
-        this.faceRecognizer.start(
-          userData.faceImage,
-          () => ToastManager.show("Wajah cocok!", "success"),
-          () => ToastManager.show("Wajah tidak cocok", "error")
-        );
-      } else {
-        this.invalidQRCount++;
-        ToastManager.show("QR tidak valid", "error");
-
-        if (this.invalidQRCount >= 15) {
-          const manualBtn = document.getElementById("code-manual-btn");
-          if (manualBtn) manualBtn.classList.remove("dis-none");
-        }
-      }
-    } catch (err) {
-      console.error("Request error:", err);
-      ToastManager.show("Gagal ambil data", "error");
+      ToastManager.show("Memulai pemindaian QR...", "info");
+      await this.qrScanner.start();
+    } catch (e) {
+      ToastManager.show("Gagal memulai scanner: " + e.message, "error");
     }
   }
 
+  async handleQRScan(data, rawQR) {
+    try {
+      ToastManager.show("Verifikasi QR...", "info");
+      const isValid = await this.verifyQRData(data);
 
-  handleQRFail(reason) {
-    return console.warn("QR gagal:", reason);
-
-    if (reason === "timeout") {
-      this.retryCount++;
-      if (this.retryCount < this.retryLimit) {
-        ToastManager.show("Waktu habis, ulangi...", "warning");
+      if (isValid) {
+        ToastManager.show("QR Valid! Lanjut...", "success");
+        this.qrScanner.stop();
+        // Next step: face recognition or redirect
+        return true;
       } else {
-        ToastManager.show("Terlalu banyak kegagalan. Hubungi admin.", "error");
+        ToastManager.show("QR tidak dikenal", "warning");
+        return false;
       }
+    } catch (e) {
+      ToastManager.show("Error saat verifikasi QR", "error");
+      return false;
     }
+  }
 
-    if (reason === "camera-error") {
-      ToastManager.show("Gagal membuka kamera", "error");
-    }
+  async handleQRFail() {
+    ToastManager.show("QR gagal dipindai", "error");
+  }
+
+  async verifyQRData(data) {
+    // Contoh validasi sederhana
+    return data && data.nama && data.id;
+  }
+
+  goToManualInput() {
+    ToastManager.show("Berpindah ke input manual", "info");
+    // Navigasi atau tampilkan form input kode
   }
 }
 
 
+
 class ToastManager {
+  static currentToast = null;
+  static hideTimeout = null;
+
   static show(message, type = "info", duration = 3000) {
-    // Buat elemen toast
+    // Hapus toast sebelumnya jika masih ada
+    this.clear();
+
+    // Buat elemen toast baru
     const toast = document.createElement("div");
     toast.className = `toast ${type}`;
     toast.innerHTML = message;
 
-    // Append dulu dengan state awal (opacity 0)
+    // Append ke body (belum tampil)
     document.body.appendChild(toast);
+    this.currentToast = toast;
 
-    // Trigger reflow biar CSS transition bisa jalan
+    // Trigger CSS animasi show (opacity/fade)
     requestAnimationFrame(() => {
       toast.classList.add("show");
     });
 
-    // Timer untuk hilangkan toast
-    setTimeout(() => {
+    // Set timeout untuk hide
+    this.hideTimeout = setTimeout(() => {
       toast.classList.remove("show");
-
-      // Tunggu animasi keluar selesai baru remove
       setTimeout(() => {
         if (toast && toast.parentNode) {
           toast.remove();
         }
-      }, 300); // waktu animasi di CSS
+        this.currentToast = null;
+        this.hideTimeout = null;
+      }, 300); // waktu animasi hide
     }, duration);
+  }
+
+  static clear() {
+    // Hapus timeout sebelumnya
+    if (this.hideTimeout) clearTimeout(this.hideTimeout);
+
+    // Hapus elemen toast yang masih ada
+    if (this.currentToast && this.currentToast.parentNode) {
+      this.currentToast.remove();
+    }
+
+    this.currentToast = null;
+    this.hideTimeout = null;
   }
 }
 
