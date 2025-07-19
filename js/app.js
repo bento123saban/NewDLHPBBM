@@ -4,99 +4,84 @@ class QRScanner {
     this.onSuccess = onSuccess;
     this.onFailure = onFailure;
     this.timeoutMs = timeoutMs;
-
-    this.qr = null;
+    this.qrCodeScanner = null;
     this.qrTimeout = null;
-    this.retryCount = 0;
-    this.maxRetries = 3;
-    this.isScanning = false;
+    this.scanning = false;
   }
 
   async start() {
-    if (this.isScanning) return;
-    this.isScanning = true;
-
-    const region = document.getElementById(this.regionId);
-    if (!region || region.offsetParent === null) {
-      ToastManager.show.show("Elemen QR tidak ditemukan atau tersembunyi", 4000, "error");
-      this.isScanning = false;
-      return;
-    }
-
     try {
-      if (!window.Html5Qrcode) {
-        ToastManager.show.show("Library Html5Qrcode belum dimuat", 4000, "error");
-        this.isScanning = false;
+      const region = document.getElementById(this.regionId);
+      if (!region || region.offsetParent === null) {
+        console.warn("QRScanner: Region tidak terlihat, batal start.");
         return;
       }
 
-      this.qr = new Html5Qrcode(this.regionId, { verbose: false });
-
-      const devices = await Html5Qrcode.getCameras();
-      const frontCam = devices.find(d => /front|depan/i.test(d.label)) || devices[0];
-
-      if (!frontCam) throw new Error("Kamera tidak ditemukan");
-
-      await this.qr.start(
-        { deviceId: { exact: frontCam.id } },
-        { fps: 10, qrbox: undefined }, // No scan box for full video
-        this._onScanSuccess.bind(this),
-        this._onScanFailure.bind(this)
-      );
-
-      this.qrTimeout = setTimeout(() => {
-        console.warn("QR timeout: tidak ada QR terdeteksi");
-        this.stop(); // tetap stop QR scanner
-        this.onFailure("timeout"); // TIDAK masuk auto-retry
-      }, this.timeoutMs);
-
-    } catch (err) {
-      ToastManager.show.show(`Gagal inisialisasi kamera: ${err.message}`, 4000, "error");
-      console.error("QRScanner Error:", err);
-      this.retryCount++;
-
-      if (this.retryCount <= this.maxRetries) {
-        setTimeout(() => this.start(), 1000);
-      } else {
-        this.onFailure("camera_error");
-        this.retryCount = 0;
+      if (this.qrCodeScanner) {
+        await this.qrCodeScanner.clear();
+        this.qrCodeScanner = null;
       }
 
-      this.isScanning = false;
+      this.qrCodeScanner = new Html5Qrcode(this.regionId, {
+        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+      });
+
+      this.scanning = true;
+      ToastManager.show("Membuka kamera...", "info");
+
+      await this.qrCodeScanner.start(
+        { facingMode: "environment" },
+        {
+          fps: 10,
+          qrbox:undefined
+        },
+        (decodedText) => {
+          if (!this.scanning) return;
+          this.stop();
+          this.onSuccess(decodedText);
+        },
+        (errorMessage) => {
+          // bisa diabaikan atau log
+        }
+      );
+
+      // Timeout
+      this.qrTimeout = setTimeout(() => {
+        if (!this.scanning) return;
+        this.stop();
+        ToastManager.show("Waktu habis. Silakan ulangi.", "warning");
+        document.getElementById("restart-scan-btn")?.classList.remove("dis-none");
+        this.onFailure("timeout");
+      }, this.timeoutMs);
+    } catch (err) {
+      console.error("QRScanner: Gagal inisialisasi kamera", err);
+      ToastManager.show("Gagal membuka kamera", "error");
+      this.onFailure("error");
     }
-  }
-
-  _onScanSuccess(decodedText) {
-    if (this.qrTimeout) clearTimeout(this.qrTimeout);
-    ToastManager.show.show("QR ditemukan", 2000, "success");
-    this.stop();
-    this.onSuccess(decodedText);
-  }
-
-  _onScanFailure(error) {
-    // Tidak perlu toast tiap gagal scan
-    // Tapi jika error fatal bisa disini
   }
 
   async stop() {
-    if (this.qr) {
-      try {
-        await this.qr.stop();
-        this.qr.clear();
-      } catch (err) {
-        console.warn("QRScanner: Error saat stop()", err);
+    try {
+      this.scanning = false;
+      if (this.qrTimeout) {
+        clearTimeout(this.qrTimeout);
+        this.qrTimeout = null;
       }
-      this.qr = null;
+      if (this.qrCodeScanner) {
+        await this.qrCodeScanner.stop();
+        await this.qrCodeScanner.clear();
+        this.qrCodeScanner = null;
+      }
+    } catch (err) {
+      console.warn("QRScanner: Error saat stop", err);
     }
-
-    if (this.qrTimeout) {
-      clearTimeout(this.qrTimeout);
-      this.qrTimeout = null;
-    }
-
-    this.isScanning = false;
   }
 }
+
+
+
+
+
 
 // Jangan lupa pastikan ToastManager.show.init() dipanggil sebelum pemakaian
 // Biasanya cukup sekali saat load awal di AppController atau index.html
@@ -296,7 +281,8 @@ class AppController {
 
   init() {
     document.getElementById("restart-scan-btn").addEventListener("click", () => {
-      this.qrScanner.stop();
+      const btn = document.getElementById("restart-scan-btn");
+      if (btn) btn.classList.add("hidden");
       this.qrScanner.start();
     });
 
@@ -347,6 +333,7 @@ class AppController {
   }
 
   handleQRFail(reason) {
+    return
     console.warn("QR gagal:", reason);
     ToastManager.show("QR gagal dibaca", "error");
 
@@ -359,6 +346,8 @@ class AppController {
     }
   }
 }
+
+
 // DebugPanel
 class DebugPanel {
   log(title, request, response) {
