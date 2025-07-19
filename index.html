@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>QR + Face Verification</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/bendhard16.min.css">
+<link rel="stylesheet" href="./font/fontawsome/css/all.css">
+</head>
+<body>
+
+    <div class="main-bg fixed-top-left vh-100 vw-100">
+        <div class="wave-box default flex-end flex-column relative">
+            <div class="blob-parent dis-none absolute-top">
+                <div class="magicpattern"></div>
+            </div>
+            <div class="bg-img dis-none absolute-top grid-center pt-3">
+                <img src="/asset/ilustrat/qrCodeScanner.png">
+            </div>
+            <div class="wave-content">
+                <!--Waves Container-->
+                <svg class="waves relative w-100 h-100" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none" shape-rendering="auto">
+                    <defs>
+                        <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" />
+                    </defs>
+                    <g class="parallax">
+                        <use xlink:href="#gentle-wave" x="48" y="0" fill="#efefef70" />
+                        <use xlink:href="#gentle-wave" x="48" y="3" fill="#efefef50" />
+                        <use xlink:href="#gentle-wave" x="48" y="5" fill="#efefef30" />
+                        <use xlink:href="#gentle-wave" x="48" y="7" fill="#efefef" />
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+<!-- Toast -->
+<div id="toast-container"></div>
+
+<!-- QR Scanner -->
+<div id="camera" class="content grid-center vw-100 vh-100 p-20 hidden relative">
+    <div id="camera-content" class="relative hidden">
+        <h1 class="absolute-top align-center w-100 p-30 clr-white">Scan QR Code</h1>
+        <div id="qr-reader" class="relative w-100 h-100 hidden"></div>
+        <button id="restart-scan-btn" class="btn-scan-restart" style="display: none;"><i class="fas fa-qrcode fz-24 clr-default"></i></button>
+        <div id="scan-guide-line" class="relative grid-center br-white">
+            <div class="line ln1"></div>
+            <div class="line ln2"></div>
+            <div class="line ln3"></div>
+            <div class="line ln4"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Manual Input -->
+<div id="manual" class="content dis-none">
+    <h2>Input Manual</h2>
+    <input type="text" id="manual-code" placeholder="Masukkan kode" style="width:100%;padding:10px;border-radius:6px;border:none;" />
+    <button onclick="location.hash='#camera'" class="toast-button">Kembali ke Scanner</button>
+</div>
+
+<!-- Face Recognition -->
+<div id="face" class="content dis-none">
+    <h2>Verifikasi Wajah</h2>
+    <video id="video" autoplay muted playsinline></video>
+    <canvas id="canvas" style="display: none;"></canvas>
+</div>
+
+<!-- Script Dependencies -->
+<script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
+<script src="./js/app.js"></script>
+
+
+<!-- Init App -->
+<script>
+    window.addEventListener("DOMContentLoaded", () => new AppController(""))
+</script>
+
+</body>
+</html>

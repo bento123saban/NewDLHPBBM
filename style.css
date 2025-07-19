@@ -1,0 +1,130 @@
+:root {
+  --bg-light: #fdfdfd;
+  --bg-dark: #222;
+  --text-light: #333;
+  --text-dark: #eee;
+  --accent: #ccc;
+  --primary: #1f1f1f;
+  --success: #4caf50;
+  --error: #f44336;
+  --warning: #ff9800;
+  --info: #2196f3;
+  --cream: #f6f4f2;
+  --grey: #e0e0e0;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+}
+.content {
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+}
+
+#camera-content {
+    width: clamp(250px, 100%, 500px);
+    height: clamp(500px, 100%, 700px);
+    border: 3px solid white;
+    backdrop-filter: blur(3px);
+    background: linear-gradient(45deg, #ffffff80, transparent);
+    border-radius: 20px;
+    overflow: hidden !important;
+}
+
+#qr-reader video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: -1;
+}
+
+#restart-scan-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 50px;
+  aspect-ratio: 1;
+  border-radius: 1000px;
+  outline: 3px solid white;
+  outline-offset: 5px;
+  border: none;
+  background: white;
+  padding-top: 3px;
+}
+
+#scan-guide-line {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 100px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-45%);
+    width: 250px;
+    aspect-ratio: 1;
+}
+#scan-guide-line .line {
+    background: transparent !important;
+    border-width: 2px !important;
+    height: 100%;
+    width: 100%;
+    border-color:  inherit !important;
+}
+.ln1 {
+    border-top-left-radius: 7px;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+}
+.ln2 {
+    border-top-right-radius: 7px;
+    border-top: 2px solid white;
+    border-right: 2px solid white;
+}
+.ln3 {
+    border-bottom-left-radius: 7px;
+    border-bottom: 2px solid white;
+    border-left: 2px solid white;
+}
+.ln4 {
+    border-bottom-right-radius: 7px;
+    border-bottom: 2px solid white;
+    border-right: 2px solid white;
+}
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 250px;
+  padding: 1rem;
+  border-radius: 6px;
+  text-align: center;
+  z-index: 9999;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast.success { background-color: var(--success); }
+.toast.error { background-color: var(--error); }
+.toast.warning { background-color: var(--warning); }
+.toast.info { background-color: var(--info); }
