@@ -162,6 +162,7 @@ class AppController {
     this.state = null;
     this.retryLimit = 3;
     this.retryCount = 0;
+    this.invalidQRCount = 0; // Tambahkan ini
 
     this.qrScanner = new QRScanner(
       "qr-reader",
@@ -185,6 +186,13 @@ class AppController {
     this.changeContent("camera");
   }
 
+  updateQRResult(data) {
+    const el = document.getElementById("result");
+    if (el) {
+      el.textContent = data;
+    }
+  }
+
   changeContent(id) {
     document.querySelectorAll(".content").forEach(el => el.classList.add("hidden"));
     const content = document.getElementById(id);
@@ -198,18 +206,26 @@ class AppController {
       this.qrScanner.stop();
       this.faceRecognizer.stop();
     }
+    this.resetInvalidQRCount()
+  }
+
+  resetInvalidQRCount() {
+    this.invalidQRCount = 0;
+    const manualBtn = document.getElementById("code-manual-btn");
+    if (manualBtn) manualBtn.classList.add("dis-none");
   }
 
   async handleQRScan(data) {
-    // QR discan => reset timeout di QRScanner sudah dilakukan
     console.log("QR scanned:", data);
     ToastManager.show("Memvalidasi QR...", "info");
-
+    this.updateQRResult(data); // Tampilkan QR ke result
+    return 
     try {
       const response = await this.request.get(`${this.serverUrl}/get-data?qr=${encodeURIComponent(data)}`);
       const userData = response.data;
 
       if (userData && userData.faceImage) {
+        this.invalidQRCount = 0; // Reset counter kalau valid
         this.changeContent("face");
         this.faceRecognizer.start(
           userData.faceImage,
@@ -217,14 +233,20 @@ class AppController {
           () => ToastManager.show("Wajah tidak cocok", "error")
         );
       } else {
+        this.invalidQRCount++;
         ToastManager.show("QR tidak valid", "error");
-        // Scanner tetap lanjut, timeout tetap berjalan
+
+        if (this.invalidQRCount >= 15) {
+          const manualBtn = document.getElementById("code-manual-btn");
+          if (manualBtn) manualBtn.classList.remove("dis-none");
+        }
       }
     } catch (err) {
       console.error("Request error:", err);
       ToastManager.show("Gagal ambil data", "error");
     }
   }
+
 
   handleQRFail(reason) {
     return console.warn("QR gagal:", reason);
