@@ -1,0 +1,234 @@
+:root {
+  --bg-light: #fdfdfd;
+  --bg-dark: #222;
+  --text-light: #333;
+  --text-dark: #eee;
+  --accent: #ccc;
+  --primary: #1f1f1f;
+  --success: #4caf50;
+  --error: #f44336;
+  --warning: #ff9800;
+  --info: #2196f3;
+  --cream: #f6f4f2;
+  --grey: #e0e0e0;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+}
+
+
+.content {
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+
+}
+
+/*camera content setting */
+#camera-content, #face-content {
+    width: clamp(250px, 100%, 500px);
+    height: clamp(500px, 100%, 700px);
+    border: 3px solid white;
+    backdrop-filter: blur(3px);
+    background: linear-gradient(45deg, #ffffff80, transparent);
+    border-radius: 20px;
+    overflow: hidden !important;
+}
+#camera-content h1 {z-index: 10;}
+#camera-content video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 0;
+}
+#camera-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+}
+#restart-scan-btn, 
+#code-manual-btn {
+  width: 50px;
+  aspect-ratio: 1;
+  border-radius: 1000px;
+  outline: 3px solid white;
+  outline-offset: 5px;
+  border: none;
+  background: white;
+  padding-top: 3px;
+  z-index: 100; 
+  color: darkcyan !important;
+}
+#cams-timeout-counter {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+/* scan-guide-line */
+#face-guide-line {transform: translate(-50%, -90%) scale(1.2)!important;}
+.scan-guide-line {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    gap: 100px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%,-50%);
+    width: 250px;
+    aspect-ratio: 1;
+}
+.scan-guide-line .line {
+    background: transparent !important;
+    border-width: 2px !important;
+    height: 100%;
+    width: 100%;
+    border-color:  inherit !important;
+}
+.ln1 {
+    border-top-left-radius: 7px;
+    border-top: 2px solid white;
+    border-left: 2px solid white;
+}
+.ln2 {
+    border-top-right-radius: 7px;
+    border-top: 2px solid white;
+    border-right: 2px solid white;
+}
+.ln3 {
+    border-bottom-left-radius: 7px;
+    border-bottom: 2px solid white;
+    border-left: 2px solid white;
+}
+.ln4 {
+    border-bottom-right-radius: 7px;
+    border-bottom: 2px solid white;
+    border-right: 2px solid white;
+}
+
+#data-driver {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 150px;
+  display: flex;
+  justify-content: flex-center;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  background: linear-gradient(45deg, white, transparent);
+}
+.data-left {
+  width: 120px;
+  aspect-ratio: 1;
+  position: relative;
+  padding: 10px;
+}
+.driver-img {
+  height: 100%;
+  width: 100%;
+  border-radius: 10px;
+  position: relative;
+  border: 4px solid white;
+}
+.data-left img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  object-fit: cover;
+  object-position: center ;
+  width: 100%;
+  height: 100%;
+}
+#data-driver span {
+  display: block;
+}
+
+.bbm-type-btn {
+  padding: 9px;
+  width: 150px;
+  text-align: center;
+  border: 4px solid white;
+  color: white;
+  border-radius: 10px;
+  transition:  all .4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.bbm-type-btn.chosen {
+  background: linear-gradient(45deg, white, lightgray);
+  color: darkcyan;
+    scale: 1.2;
+    border-color: darkcyan;
+}
+.bbm-type-btn.denied {
+    scale: .8;
+    border-color: lightgray;
+    color: lightgray;
+}
+
+.liter-count span {
+    display: block;
+    height: 40px;
+    aspect-ratio: 1;
+    border: 2.5px solid white;
+    border-radius: 5px;
+    font-size: 18px;
+    padding-top: 6px;
+}
+
+
+/* scan Toast settings */
+.camera-toast {
+  font-size: 12px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-width: 200px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  text-align: center;
+  z-index: 9999;
+  color: white;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 10;
+}
+.camera-toast.show {
+  opacity: .9;
+  transform: translateX(-50%) translateY(0);
+}
+.camera-toast.success { background-color: var(--success); }
+.camera-toast.error { background-color: var(--error); }
+.camera-toast.warning { background-color: var(--warning); }
+.camera-toast.info { background-color: var(--info); }
+
+
+#granted i, #denied i{
+    width: 70px;
+    aspect-ratio: 1;
+    background: white !important;
+    outline: 3px solid white !important;
+    outline-offset: 4px;
+    border-radius: 1000px;
+}
+#granted i {
+    color: lime;
+    border: 3px solid lime;
+}
+#denied i {
+    color: red;
+    border: 3px solid red;
+}

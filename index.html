@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/bendhard16.min.css">
+    <link rel="stylesheet" href="./font/fontawsome/css/all.css">
+</head>
+<body>
+    
+    <div class="main-bg fixed-top-left vh-100 vw-100">
+        <div class="wave-box black flex-end flex-column relative">
+            <div class="blob-parent dis-none absolute-top">
+                <div class="magicpattern"></div>
+            </div>
+            <div class="bg-img dis-none absolute-top grid-center pt-3">
+                <img src="/asset/ilustrat/qrCodeScanner.png">
+            </div>
+            <div class="wave-content">
+                <!--Waves Container-->
+                <svg class="waves relative w-100 h-100" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none" shape-rendering="auto">
+                    <defs>
+                        <path id="gentle-wave" d="M-160 44c30 0 58-18 88-18s 58 18 88 18 58-18 88-18 58 18 88 18 v44h-352z" />
+                    </defs>
+                    <g class="parallax">
+                        <use xlink:href="#gentle-wave" x="48" y="0" fill="#efefef70" />
+                        <use xlink:href="#gentle-wave" x="48" y="3" fill="#efefef50" />
+                        <use xlink:href="#gentle-wave" x="48" y="5" fill="#efefef30" />
+                        <use xlink:href="#gentle-wave" x="48" y="7" fill="#efefef" />
+                    </g>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <div class="content flex-center justify-center flex-column gap-15 vh-100 p-30 clr-white" id="home">
+        <h1 class="m-0 p-0 uppercase">Kontrol BBM</h1>
+        <h4 class="m-0 p-0">DLHP Kota Ambon</h4>
+        <p class="m-0 p-0 home-text ph-10 align-justify fz-14">Lorem ipsum dolor sit amet consectetur adipisicing elit. Nihil, nulla? Minus, vero nihil eos facere illum magnam odio quas quasi, vel expedita sint ut voluptatum laudantium labore aut quaerat iste.</p>
+        <button class="borad-5 transparent clr-white bolder p-10 br-none pointer" id="start"><i class="fas fa-qrcode fz-40"></i></button>
+    </div>
+
+    <div class="content grid-center p-20 hidden relative dis-none" id="scan" >
+        <div id="camera-content" class="relative hidden">
+            <h1 class="absolute-top align-center w-100 p-30 clr-white" id="scan-head">Scan QR Code</h1>
+            <span class="dis-block align-center fz-10 bolder clr-white" id="cams-timeout-counter">Counter</span>
+            <div id="qr-reader" class="relative w-100 h-100 hidden"></div>
+            <div id="camera-btn" class="flex-evenly">
+                <button id="code-manual-btn" class="btn-manual hidden dis-none"><i class="fas fa-code fz-24"></i></button>
+                <button id="restart-scan-btn" class="btn-scan-restart pointer"><i class="fas fa-qrcode fz-24"></i></button>
+            </div>
+            
+            <span id="qr-text" class="clr-white bolder fz-24"></span>
+            <div class="scan-guide-line grid-center br-white">
+                <div class="line ln1"></div>
+                <div class="line ln2"></div>
+                <div class="line ln3"></div>
+                <div class="line ln4"></div>
+            </div>
+            
+            <div id="scan-toast" class="camera-toast p-5 show info">Memulai kamera...</div>
+        </div>
+    </div>
+
+    <!-- 
+    <div class="content grid-center dis-none" id="code">
+        <div class="code-box clr-white m-auto">
+            <h3 class="align-center uppercase">Masukan Kode</h3>
+            <span class="dis-block align-center fz-10">Contoh : X-001</span>
+            <div class="hr white m-auto mb-2 mt-1"></div>
+            <div class="code-inputs flex-center gap-10 mb-3 fz-30 bolder">
+                <input type="text" maxlength="1" name="" id="" class="code-inputer">-
+                <input type="text" maxlength="1" name="" id="" class="code-inputer">
+                <input type="text" maxlength="1" name="" id="" class="code-inputer">
+                <input type="text" maxlength="1" name="" id="" class="code-inputer">
+            </div>
+            <div class="code-loader-box hidden relative">
+                <span class="code-loader"></span>
+            </div>
+            <span class="dis-block align-center fz-10">Kode akan dicari secara otomatis setelah diisi semua</span>
+            <span class="dis-block align-center fz-10 mt-2 pt-5 to-content" data-target="camera" data-state="scan">To Scan &nbsp; <i class="fas fa-qrcode"></i></span>
+        </div>
+    </div>
+    -->
+
+    <div class="content grid-center p-20 hidden relative dis-none" id="face" >
+        <div id="face-content" class="relative hidden">
+            <video id="face-video"></video>
+            <div class="scan-guide-line grid-center br-orange" id="face-guide-line">
+                <div class="line ln1"></div>
+                <div class="line ln2"></div>
+                <div class="line ln3"></div>
+                <div class="line ln4"></div>
+            </div>
+            
+            <div id="face-toast" class="camera-toast p-5 show info">Memulai kamera...</div>
+
+            <div id="data-driver" class="clr-default bolder uppercase p-10">
+                <div class="data-left h-100 grid-center">
+                    <div class="driver-img hidden">
+                        <img src="./img/driver.jpeg" alt="driver-photo">
+                    </div>
+                </div>
+                <div class="data-right">
+                    <span>Nama Driver</span>
+                    <span>DE 0813 AR</span>
+                    <span>X-001 DS</span>
+                    <span>Pick UP L300</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="content grid-center p-20 clr-white dis-none" id="bbm-form">
+        <div id="bbm" class="dis-none">
+            <span class="dis-block align-center fz-12 mb-3 bolder">Pilih Jenis BBM</span>
+            <div class="bbm-type align-center gap-10 mt-1 fz-24 br-white bolder">
+                <div class="bbm-type-btn chosen">Dexlite</div>
+                <div class="hr white mb-2 mt-2"></div>
+                <div class="bbm-type-btn denied">Pertamax</div>
+            </div>
+        </div>
+        <div id="liter" class="dis-none">
+            <span class="dis-block align-center fz-12 mb-3 bolder">Pilih Jumlah Liter</span>
+            <div class="hr white mb-2 mt-2"></div>  
+            <div class="liter-count flex-center align-center gap-10 mt-1 fz-24 br-white">
+                <span id="liter3">3</span>|
+                <span id="liter6">6</span>
+                <span id="liter20">20</span>
+                <span id="liter11">11</span>|
+                <span id="liter22">22</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="content grid-center p-20 dis-none" id="verify">
+        <div id="granted" class="align-center dis-none">
+            <i class="fas fa-check fz-30 grid-center m-auto"></i>
+            <span class="dis-block align-center mt-3 uppercase bolder fz-20 clr-white">Verifikasi Sukses</span>
+        </div>
+        <div id="denied" class="align-center dis-none">
+            <i class="fas fa-x fz-30 grid-center m-auto"></i>
+            <span class="dis-block align-center mt-3 uppercase bolder fz-20  clr-white">Akses Ditolak</span>
+        </div>
+    </div>
+
+    <div class="content dis-none" id="loader">
+        <div class="loaderx grid-center">
+            <div class="loader-content relative clr-default">
+                <div class="loader"></div>
+                <div class="align-center fz-8 ping-text p-3"></div>
+                <div class="align-center loader-text fz-14">Request Data</div>
+            </div>
+        </div>
+    </div>
+
+<script>
+/*
+    function speakText() {
+    
+    }
+*/
+</script>
+
+<!-- Harus di atas app.js -->
+<script src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
+<script src="./js/app.js"></script>
+<script src="./js/config.js"></script>
+
+
+
+</body>
+</html>
