@@ -35,10 +35,10 @@ class TTS {
 
 
 class QRScanner {
-    constructor(onSuccess, timeoutMs = 30000) {
-        this.onSuccess = onSuccess;
+    constructor(onSuccess, onFailed, timeoutMs = 30000) {
+        this.onSuccess  = onSuccess;
+        this.onFailed   = onFailed;
         this.timeoutMs = timeoutMs;
-
         this.falseCount = 0
 
         this.qrCodeScanner = null;
@@ -47,7 +47,6 @@ class QRScanner {
 
         this.isScanning = false;
         this.isRunning = false;
-
         this.isPaused   = false;
 
         // DOM
@@ -74,7 +73,9 @@ class QRScanner {
     async start() {
         if (this.isScanning || this.isRunning || this.isVerify) return;
         if (typeof Html5Qrcode === "undefined") return this._showToast("Library QR belum dimuat : html5qrcode-not-found", "error")
+        
         TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
+        
         this._showToast("Memulai kamera...");
         this._showElement(this.regionEl);
         this._hideElement(this.restartBtn);
@@ -115,6 +116,10 @@ class QRScanner {
         if(this.isVerify) return
         this._clearCountdown();
         this.isScanning = false;
+        this.isPaused   = false;
+        this.isRunning  = false;
+        this.isVerify   = false;
+        this.falseCount = 0
 
         this._hideElement(this.scanGuide);
         this._showElement(this.restartBtn);
@@ -140,6 +145,7 @@ class QRScanner {
                 await this.qrCodeScanner.pause();
                 this.isPaused = true;
                 console.log("Scanner paused");
+                this._clearCountdown()
             } catch (err) {
                 console.warn("Pause gagal:", err);
             }
@@ -152,6 +158,7 @@ class QRScanner {
                 await this.qrCodeScanner.resume();
                 this.isPaused = false;
                 console.log("Scanner resumed");
+                this._startCountdown()
             } catch (err) {
                 console.warn("Resume gagal:", err);
             }
@@ -160,19 +167,23 @@ class QRScanner {
 
     _QRVerify(qrText) {
         if (this.isVerify) return;
-        if (qrText.length <= 15) return
+        if (qrText.length <= 10) return
+
+        this.isVerify = true;
+
         const blocx = JSON.parse(localStorage.getItem("bnd-blc"))
-        if  (blocx.findIndex(i => i == qrText) >= 0) {
-            document.querySelector("#verify").classList.remove("dis-none")
+        if  (blocx.findIndex(i => i == qrText) >= 0) return this.onFailed("")
+            /*document.querySelector("#verify").classList.remove("dis-none")
             document.querySelector("#denied").classList.remove("dis-none")
             return TTS.speak("QR Code terblokir. Hubungi admin untuk membuka blokir", () => {
                 setTimeout(() => {
                     document.querySelector("#verify").classList.remove("dis-none")
                     document.querySelector("#denied").classList.remove("dis-none")
-                }, 10000)
-            })
-        }
-        this.isVerify = true;
+                    this.resume()
+                    this.isVerify = false
+                }, 2000)
+            })*/
+        
         this._showToast("Verifikasi QR", "info");
 
         try {
@@ -210,6 +221,7 @@ class QRScanner {
             if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "DLHP") {
                 throw new Error("QR tidak memiliki otorisasi atau auth salah.");
             }
+
             return console.log("QR Bendhard16")
 
             // ✅ Lolos semua
@@ -239,6 +251,7 @@ class QRScanner {
             if(this.falseCount > 15) return
             this.isVerify = false;
             this.resume()
+            clearTimeout(timeout)
         }
     }
 
@@ -301,7 +314,14 @@ class QRScanner {
 
 class AppController {
     constructor() {
-        this.qrScanner = new QRScanner(this._handleQRSuccess.bind(this), 15000);
+        this.qrScanner = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
+    }
+
+    _bindElement () {
+        this.denied     = document.querySelector("#denied")
+        this.granted    = document.querySelector("#granted")
+        this.deniedText = document.querySelector("#denied-text")
+        this.grantedText= document.querySelector("#granted-text")
     }
 
     start() {
@@ -316,14 +336,33 @@ class AppController {
     _handleQRSuccess(qrText) {
        
     }
+    _handleQRFailed(data) {
+
+    }
+
+    _verifyController(status, text = ""){
+        if(!this.changeContent("verify")) return console.warn(`Verify content not found.`)
+        if (status == 'denied') {
+            this.denied.classList.remove("dis-none")
+            this.granted.classList.add("dis-none")
+            this.grantedText    = "..."
+            this.deniedText     = text
+        } else if (status == "granted") {
+            this.denied.classList.add("dis-none")
+            this.granted.classList.remove("dis-none")
+            this.deniedText     = "..."
+            this.grantedText    = text
+        }
+    }
 
     changeContent(targetId) {
         const allSections = document.querySelectorAll(".content");
         allSections.forEach(el => el.classList.add("dis-none"));
 
         const target = document.getElementById(targetId);
-        if (target) target.classList.remove("dis-none");
-        else console.warn(`Section #${targetId} tidak ditemukan.`);
+        if (!target) return undefined
+        target.classList.remove("dis-none");
+        return true
     }
 }
 
