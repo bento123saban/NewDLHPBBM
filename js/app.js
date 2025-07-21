@@ -33,7 +33,6 @@ class TTS {
     }
 }
 
-
 class QRScanner {
     constructor(onSuccess, onFailed, timeoutMs = 30000) {
         this.onSuccess  = onSuccess;
@@ -172,7 +171,14 @@ class QRScanner {
         this.isVerify = true;
 
         const blocx = JSON.parse(localStorage.getItem("bnd-blc"))
-        if  (blocx.findIndex(i => i == qrText) >= 0) return this.onFailed("")
+        if  (blocx.findIndex(i => i == qrText) >= 0) {
+            this.stop()
+            return this.onFailed({
+                status  : "denied",
+                text    : 'QR Code Diblokir',
+                speak   : 'QR Code telah terblokir. Hubungi admin untuk melepas blokir'
+            })
+        }
             /*document.querySelector("#verify").classList.remove("dis-none")
             document.querySelector("#denied").classList.remove("dis-none")
             return TTS.speak("QR Code terblokir. Hubungi admin untuk membuka blokir", () => {
@@ -218,18 +224,22 @@ class QRScanner {
             }
 
             // 📋 Validasi struktur QR
-            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "DLHP") {
+            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") {
                 throw new Error("QR tidak memiliki otorisasi atau auth salah.");
             }
+            
+            if (!qrData.code) throw new Error('Code tidak ditemukan atau invalid')
+            
+            this.onSuccess(data.code)
 
             return console.log("QR Bendhard16")
 
             // ✅ Lolos semua
             clearTimeout(timeout);
             this.stop(); // stop QRScanner
-            this.changeContent("face-verification");
+            //this.changeContent("face-verification");
             console.log("✅ QR valid:", qrData);
-            this._processQR(qrData);
+            //this._processQR(qrData);
 
         } catch (err) {
             console.error("❌ Error verifikasi QR:", err.message);
@@ -314,7 +324,7 @@ class QRScanner {
 
 class AppController {
     constructor() {
-        this.qrScanner = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
+        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
     }
 
     _bindElement () {
@@ -333,25 +343,38 @@ class AppController {
         this.qrScanner.stop();
     }
 
-    _handleQRSuccess(qrText) {
+    _handleQRSuccess(code) {
        
     }
     _handleQRFailed(data) {
-
+        const verify = this._verifyController({status : data.status, text : data.text})
+        verify.show()
+        TTS.speak(data.speak, verify.cleat())
     }
 
-    _verifyController(status, text = ""){
+    _verifController(data){
         if(!this.changeContent("verify")) return console.warn(`Verify content not found.`)
-        if (status == 'denied') {
-            this.denied.classList.remove("dis-none")
-            this.granted.classList.add("dis-none")
-            this.grantedText    = "..."
-            this.deniedText     = text
-        } else if (status == "granted") {
-            this.denied.classList.add("dis-none")
-            this.granted.classList.remove("dis-none")
-            this.deniedText     = "..."
-            this.grantedText    = text
+        return {
+            show : () => {
+                if (data.status == 'denied') {
+                    this.denied.classList.remove("dis-none")
+                    this.granted.classList.add("dis-none")
+                    this.grantedText    = "..."
+                    this.deniedText     = data.text
+                } else if (data.status == "granted") {
+                    this.denied.classList.add("dis-none")
+                    this.granted.classList.remove("dis-none")
+                    this.deniedText     = "..."
+                    this.grantedText    = data.text
+                }
+            },
+            clear : () => {
+                this.changeContent('scan')
+                this.denied.classList.add("dis-none")
+                this.granted.classList.add("dis-none")
+                this.grantedText    = "..."
+                this.deniedText     = "..."
+            }
         }
     }
 
@@ -365,6 +388,12 @@ class AppController {
         return true
     }
 }
+
+// RequestManager.js (non-module, class-based, async/await)
+
+
+
+
 
 window.addEventListener("DOMContentLoaded", () => { 
     let ttsUnlocked = false;
