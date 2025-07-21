@@ -33,6 +33,7 @@ class TTS {
     }
 }
 
+
 class QRScanner {
     constructor(onSuccess, onFailed, timeoutMs = 30000) {
         this.onSuccess  = onSuccess;
@@ -230,16 +231,10 @@ class QRScanner {
             
             if (!qrData.code) throw new Error('Code tidak ditemukan atau invalid')
             
-            this.onSuccess(data.code)
-
-            return console.log("QR Bendhard16")
-
-            // ✅ Lolos semua
+            this.onSuccess(qrData.code)
             clearTimeout(timeout);
             this.stop(); // stop QRScanner
-            //this.changeContent("face-verification");
-            console.log("✅ QR valid:", qrData);
-            //this._processQR(qrData);
+            return console.log("QR Bendhard16")
 
         } catch (err) {
             console.error("❌ Error verifikasi QR:", err.message);
@@ -349,7 +344,7 @@ class AppController {
     _handleQRFailed(data) {
         const verify = this._verifyController({status : data.status, text : data.text})
         verify.show()
-        TTS.speak(data.speak, verify.cleat())
+        TTS.speak(data.speak, verify.clear())
     }
 
     _verifController(data){
@@ -389,7 +384,6 @@ class AppController {
     }
 }
 
-// RequestManager.js (non-module, class-based, async/await)
 
 
 
