@@ -383,6 +383,76 @@ class AppController {
     }
 }
 
+class RequestManager {
+    constructor() {
+        this.maxRetries = 5;
+        this.retryDelay = 1000
+        this.apiURL = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
+        this.baseURL = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+    }
+
+    async post(data = {}) {
+        if (!navigator.onLine) {
+        this._log("🔌 Offline: Tidak bisa kirim request.");
+        this._showToast("Tidak ada koneksi internet. Coba lagi nanti.");
+        return { success: false, error: "offline" };
+        }
+
+        let attempt = 0;
+        while (attempt < this.maxRetries) {
+            try {
+                const response = await fetch(this.baseURL, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(data),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    this._log(`✅ POST sukses [${url}]`, result);
+                    return { success: true, data: result };
+                } else {
+                    this._log(`❌ Gagal (Status ${response.status})`, result);
+                    return { success: false, error: result };
+                }
+
+            } catch (err) {
+                attempt++;
+                this._log(`⚠️ POST error (Attempt ${attempt}/${this.maxRetries})`, err);
+
+                if (attempt >= this.maxRetries) {
+                this._showToast("Request gagal setelah beberapa kali mencoba.");
+                return { success: false, error: err.message || err };
+                }
+
+                await this._delay(this.retryDelay);
+            }
+        }
+    }
+
+    // Delay helper
+    _delay(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    // Log helper (nanti bisa dikirim ke panel debug log juga)
+    _log(...args) {
+        if (window.DEBUG_MODE) console.log("[RequestManager]", ...args);
+    }
+
+    // Toast helper (bisa integrasi ke ToastManager nanti)
+    _showToast(message) {
+        if (typeof ToastManager !== "undefined") {
+        ToastManager.show(message, "error");
+        } else {
+        console.warn("ToastManager tidak tersedia:", message);
+        }
+    }
+}
+
 
 
 
