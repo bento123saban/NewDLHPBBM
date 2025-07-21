@@ -33,7 +33,6 @@ class TTS {
     }
 }
 
-
 class QRScanner {
     constructor(onSuccess, onFailed, timeoutMs = 30000) {
         this.onSuccess  = onSuccess;
