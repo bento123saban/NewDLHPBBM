@@ -37,7 +37,7 @@ class QRScanner {
     constructor(onSuccess, onFailed, timeoutMs = 30000) {
         this.onSuccess  = onSuccess;
         this.onFailed   = onFailed;
-        this.timeoutMs = timeoutMs;
+        this.timeoutMs  = timeoutMs;
         this.falseCount = 0
 
         this.qrCodeScanner = null;
@@ -179,16 +179,6 @@ class QRScanner {
                 speak   : 'QR Code telah terblokir. Hubungi admin untuk melepas blokir'
             })
         }
-            /*document.querySelector("#verify").classList.remove("dis-none")
-            document.querySelector("#denied").classList.remove("dis-none")
-            return TTS.speak("QR Code terblokir. Hubungi admin untuk membuka blokir", () => {
-                setTimeout(() => {
-                    document.querySelector("#verify").classList.remove("dis-none")
-                    document.querySelector("#denied").classList.remove("dis-none")
-                    this.resume()
-                    this.isVerify = false
-                }, 2000)
-            })*/
         
         this._showToast("Verifikasi QR", "info");
 
@@ -198,6 +188,7 @@ class QRScanner {
                 this.isVerify = false;
                 this._showToast("Timeout verifikasi QR", "error");
                 console.warn("QR Verification timeout");
+                return
             }, 10000); // 10 detik max proses
 
             // 🚫 Empty/null/undefined check
@@ -209,25 +200,16 @@ class QRScanner {
 
             // 🔐 Decode base64 → string
             let decoded = "";
-            try {
-                decoded = atob(qrText);
-            } catch (err) {
-                return console.log("Gagal decode Base64.");
-            }
+            try { decoded = atob(qrText);}
+            catch (err) {return console.log("Gagal decode Base64.");}
 
             // 🧠 Parse JSON
             let qrData = null;
-            try {
-                qrData = JSON.parse(decoded);
-            } catch (err) {
-                throw new Error("QR bukan JSON valid.");
-            }
-
-            // 📋 Validasi struktur QR
-            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") {
-                throw new Error("QR tidak memiliki otorisasi atau auth salah.");
-            }
+            try {qrData = JSON.parse(decoded);}
+            catch (err) {throw new Error("QR bukan JSON valid.");}
             
+            // 📋 Validasi struktur QR
+            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") throw new Error("QR tidak memiliki otorisasi atau auth salah.");
             if (!qrData.code) throw new Error('Code tidak ditemukan atau invalid')
             
             this.onSuccess(qrData.code)
@@ -340,13 +322,14 @@ class AppController {
     _handleQRSuccess(code) {
        
     }
+    
     _handleQRFailed(data) {
         const verify = this._verifyController({status : data.status, text : data.text})
         verify.show()
         TTS.speak(data.speak, verify.clear())
     }
 
-    _verifController(data){
+    static _verifyController(data){
         if(!this.changeContent("verify")) return console.warn(`Verify content not found.`)
         return {
             show : () => {
@@ -371,11 +354,14 @@ class AppController {
             }
         }
     }
+    
+    static _onLineConteoller() {
+        
+    }
 
-    changeContent(targetId) {
+    static changeContent(targetId) {
         const allSections = document.querySelectorAll(".content");
         allSections.forEach(el => el.classList.add("dis-none"));
-
         const target = document.getElementById(targetId);
         if (!target) return undefined
         target.classList.remove("dis-none");
@@ -390,12 +376,19 @@ class RequestManager {
         this.apiURL = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
         this.baseURL = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
     }
+    
+    static async getDriver(code) {
+        const url = this.baseURL
+        if (!navigator.onLine) {
+            
+        }
+    }
 
     async post(data = {}) {
         if (!navigator.onLine) {
-        this._log("🔌 Offline: Tidak bisa kirim request.");
-        this._showToast("Tidak ada koneksi internet. Coba lagi nanti.");
-        return { success: false, error: "offline" };
+            this._log("🔌 Offline: Tidak bisa kirim request.");
+            this._showToast("Tidak ada koneksi internet. Coba lagi nanti.");
+            return { success: false, error: "offline" };
         }
 
         let attempt = 0;
@@ -431,7 +424,7 @@ class RequestManager {
                 await this._delay(this.retryDelay);
             }
         }
-    }
+}
 
     // Delay helper
     _delay(ms) {
