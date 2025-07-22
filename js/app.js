@@ -458,6 +458,7 @@ window.addEventListener("DOMContentLoaded", () => {
         code : btoa("A-001")
     })))
     document.querySelector("#start").onclick = () => {
+        console.log("Start button clicked");
         if (!ttsUnlocked) {
             const dummy = new SpeechSynthesisUtterance(" ");
             window.speechSynthesis.speak(dummy);
