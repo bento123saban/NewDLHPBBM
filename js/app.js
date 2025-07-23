@@ -1,78 +1,66 @@
-class STATIC {
-    static verifyController(data){
+class AppController {
+    constructor() {
+        this.connection = true
+        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
+        this.reqManage  = new RequestManager()
+        this.face       = new FaceRecognizer("", "")
+    }
+
+    _bindElement () {
+    }
+
+    start() {
+        STATIC.changeContent("scan");
+        this.qrScanner.start();
         
-        const denied     = document.querySelector("#denied")
-        const granted    = document.querySelector("#granted")
-        const deniedText = document.querySelector("#denied-text")
-        const grantedText= document.querySelector("#granted-text")
-
-        if(!changeContent("verify")) return console.warn(`Verify content not found.`)
-        return {
-            show : () => {
-                if (data.status == 'denied') {
-                    denied.classList.remove("dis-none")
-                    granted.classList.add("dis-none")
-                    grantedText    = "..."
-                    deniedText     = data.text
-                } else if (data.status == "granted") {
-                    denied.classList.add("dis-none")
-                    granted.classList.remove("dis-none")
-                    deniedText     = "..."
-                    grantedText    = data.text
+        window.addEventListener('offline', () => {
+            if (this.reqManage.online = true) RequestManager._connection(false)
+            this.reqManage.online = false
+        })
+        window.addEventListener('online', () => {
+            if (this.reqManage.online = false) RequestManager._connection(true)
+            this.reqManage.online = true
+        })
+        /*window.addEventListener('online', async () => {
+            const online = async () => {
+                    try {
+                        // Ping ke Google favicon atau endpoint server kamu
+                        const response = await fetch("https://www.google.com/favicon.ico", {
+                            method  : "HEAD",
+                            mode    : "no-cors",
+                            cache   : "no-store"
+                        });
+                        // Kalau berhasil sampai sini, artinya request bisa jalan
+                        return true;
+                    } catch (error) {
+                        // Kalau error (gagal koneksi), berarti offline
+                        return false;
+                    }
                 }
-            },
-            clear : () => {
-                this.changeContent('scan')
-                denied.classList.add("dis-none")
-                granted.classList.add("dis-none")
-                grantedText    = "..."
-                deniedText     = "..."
+            if (await online()) {
+                if (this.reqManage.online = false) RequestManager._connection(true)
+                this.reqManage.online = true
             }
-        }
-    }
-    static changeContent(targetId) {
-        const allSections = document.querySelectorAll(".content");
-        allSections.forEach(el => el.classList.add("dis-none"));
-        const target = document.getElementById(targetId);
-        if (!target) return undefined
-        target.classList.remove("dis-none");
-        return true
-    }
-}
-
-
-class TTS {
-    static unlocked = false;
-
-    static unlock() {
-        if (!TTS.unlocked) {
-        const dummy = new SpeechSynthesisUtterance(" ");
-        window.speechSynthesis.speak(dummy);
-        TTS.unlocked = true;
-        }
+            else this.reqManage.online = false
+        })*/
     }
 
-    static speak(text, onEnd) {
-        TTS.unlock();
-
-        if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        }
-
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "id-ID";
-        utterance.pitch = 1;
-        utterance.rate = 1.2;
-        utterance.volume = 1;
-
-        utterance.onend = () => typeof onEnd === "function" ? onEnd() : "";
-
-        window.speechSynthesis.speak(utterance);
+    stop() {
+        this.qrScanner.stop();
     }
 
-    static stop() {
-        return window.speechSynthesis.speaking ? window.speechSynthesis.cancel() : "";
+    _handleQRSuccess(code) {
+       
     }
+    
+    _handleQRFailed(data) {
+        const verify = STATIC.verifyController({status : data.status, text : data.text})
+        verify.show()
+        TTS.speak(data.speak, verify.clear())
+    }
+
+    
+    
 }
 
 class QRScanner {
@@ -93,8 +81,6 @@ class QRScanner {
         // DOM
         this.regionEl = document.getElementById("qr-reader");
         this.restartBtn = document.getElementById("restart-scan-btn");
-        //this.manualBtn = document.getElementById("code-manual-btn");
-        this.toastEl = document.getElementById("scan-toast");
         this.counterEl = document.getElementById("cams-timeout-counter");
         this.scanGuide = document.querySelector(".scan-guide-line");
 
@@ -117,7 +103,7 @@ class QRScanner {
         
         TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
         
-        this._showToast("Memulai kamera...");
+        STATIC.toast("Memulai kamera...", "info");
         this._showElement(this.regionEl);
         this._hideElement(this.restartBtn);
         this._showElement(this.scanGuide);
@@ -299,12 +285,12 @@ class QRScanner {
             if (this.timeoutCounter <= 0) {
                 clearInterval(this.countdownInterval);
                 this.stop();
-                this._showToast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning");
+                STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning");
                 TTS.speak(
                     "Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang",
                     () => {
                         TTS.speak("Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang")
-                        this._showToast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning")
+                        STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning")
                     }
                 )
             }
@@ -320,15 +306,6 @@ class QRScanner {
         if (this.counterEl) this.counterEl.innerText = `${this.timeoutCounter}s`;
     }
 
-    _showToast(msg, type = "info") {
-        if (!this.toastEl) return;
-        this.toastEl.className = `camera-toast p-5 show ${type}`;
-        this.toastEl.innerHTML = msg;
-        setTimeout(() => {
-            this.toastEl.classList.remove("show");
-        }, 3000);
-    }
-
     _showElement(el) {
         if (!el) return;
         el.classList.remove("hidden", "dis-none");
@@ -340,70 +317,95 @@ class QRScanner {
     }
 }
 
-class AppController {
-    constructor() {
-        this.connection = true
-        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
-        this.reqManage  = new RequestManager()
-        this.face       = new FaceRecognizer("", "")
-    }
+class STATIC {
+    static verifyController(data){
+        const denied     = document.querySelector("#denied")
+        const granted    = document.querySelector("#granted")
+        const deniedText = document.querySelector("#denied-text")
+        const grantedText= document.querySelector("#granted-text")
 
-    _bindElement () {
-    }
-
-    start() {
-        this.changeContent("face");
-        this.qrScanner.start();
-        
-        window.addEventListener('offline', () => {
-            if (this.reqManage.online = true) RequestManager._connection(false)
-            this.reqManage.online = false
-        })
-        window.addEventListener('online', () => {
-            if (this.reqManage.online = false) RequestManager._connection(true)
-            this.reqManage.online = true
-        })
-        /*window.addEventListener('online', async () => {
-            const online = async () => {
-                    try {
-                        // Ping ke Google favicon atau endpoint server kamu
-                        const response = await fetch("https://www.google.com/favicon.ico", {
-                            method  : "HEAD",
-                            mode    : "no-cors",
-                            cache   : "no-store"
-                        });
-                        // Kalau berhasil sampai sini, artinya request bisa jalan
-                        return true;
-                    } catch (error) {
-                        // Kalau error (gagal koneksi), berarti offline
-                        return false;
-                    }
+        if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
+        return {
+            show : () => {
+                if (data.status == 'denied') {
+                    denied.classList.remove("dis-none")
+                    granted.classList.add("dis-none")
+                    grantedText    = "..."
+                    deniedText     = data.text
+                } else if (data.status == "granted") {
+                    denied.classList.add("dis-none")
+                    granted.classList.remove("dis-none")
+                    deniedText     = "..."
+                    grantedText    = data.text
                 }
-            if (await online()) {
-                if (this.reqManage.online = false) RequestManager._connection(true)
-                this.reqManage.online = true
+            },
+            clear : () => {
+                STATIC.changeContent('scan')
+                denied.classList.add("dis-none")
+                granted.classList.add("dis-none")
+                grantedText    = "..."
+                deniedText     = "..."
             }
-            else this.reqManage.online = false
-        })*/
+        }
     }
-
-    stop() {
-        this.qrScanner.stop();
+    static changeContent(targetId) {
+        const allSections = document.querySelectorAll(".content");
+        allSections.forEach(el => el.classList.add("dis-none"));
+        const target = document.getElementById(targetId);
+        if (!target) return undefined
+        target.classList.remove("dis-none");
+        return true
     }
-
-    _handleQRSuccess(code) {
-       
+    static toast(msg, type = "info") {
+        const toastEl = document.getElementById("toast");
+        if (!toastEl) return console.warn("Toast element not found");
+        toastEl.className = `show ${type}`;
+        toastEl.innerHTML = msg;
+        setTimeout(() => {
+            toastEl.classList.remove(`show`, `${type}`);
+        }, 3000);
     }
-    
-    _handleQRFailed(data) {
-        const verify = STATIC.verifyController({status : data.status, text : data.text})
-        verify.show()
-        TTS.speak(data.speak, verify.clear())
+    static delay (ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
-
-    
-    
 }
+
+class TTS {
+    static unlocked = false;
+
+    static unlock() {
+        if (TTS.unlocked) return 
+        const dummy = new SpeechSynthesisUtterance(" ");
+        window.speechSynthesis.speak(dummy);
+        TTS.unlocked = true;
+    }
+
+    static speak(text, onEnd) {
+        TTS.unlock();
+
+        if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        }
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "id-ID";
+        utterance.pitch = 1;
+        utterance.rate = 1.2;
+        utterance.volume = 1;
+
+        utterance.onend = () => typeof onEnd === "function" ? onEnd() : "";
+
+        window.speechSynthesis.speak(utterance);
+    }
+
+    static stop() {
+        return window.speechSynthesis.speaking ? window.speechSynthesis.cancel() : "";
+    }
+}
+
+
+
+
 
 class RequestManager {
     constructor() {
@@ -481,61 +483,68 @@ class RequestManager {
     }
 }
 
+
+
+
+
+
+
+
+
+
 class FaceRecognizer {
-  constructor(targetFaceBase64, onSuccess, onFailure, maxAttempts = 5) {
-    this.video = document.getElementById("face-video");
-    this.targetFaceBase64 = targetFaceBase64;
-    this.onSuccess = onSuccess;
-    this.onFailure = onFailure;
-    this.maxAttempts = maxAttempts;
+    constructor(base64, onSuccess, onFailure) {
+        this.video      = document.getElementById("face-video");
+        this.base64     = base64;
+        this.onSuccess  = onSuccess;
+        this.onFailure  = onFailure;
+        this.maxAttempt = 5;
 
-    this.human = null;
-    this.attempts = 0;
-    this.ready = false;
-    this.active = false;
-    this.stream = null;
-  }
-
-  async start() {
-    try {
-      this.attempts = 0;
-      this.active = true;
-      this.human = new Human({
-        cacheSensitivity: 0.95,
-        filter: { enabled: true },
-        face: {
-          enabled: true,
-          detector: { maxDetected: 1 },
-          mesh: false,
-          iris: false,
-          emotion: false,
-        },
-      });
-
-      await this._retryUntilReady();
-      await this._startCamera();
-      this._detectLoop();
-      
-    } catch (err) {
-      this._fail(`Gagal start: ${err.message}`);
+        this.human      = null;
+        this.attempts   = 0;
+        this.ready      = false;
+        this.active     = false;
+        this.stream     = null;
     }
-  }
 
-  async _retryUntilReady(retries = 5) {
-    let count = 0;
-    while (!this.ready && count < retries) {
-      try {
-        await this.human.load();
-        await this.human.warmup();
-        this.ready = true;
-      } catch (err) {
-        console.warn("Retry load Human.js", count + 1, err.message);
-        await this._delay(1000);
-        count++;
-      }
+    async start() {
+        try {
+            this.attempts = 0;
+            this.active = true;
+            this.human = new Human({
+                cacheSensitivity: 0.95,
+                filter          : { enabled: true },
+                face            : {
+                    enabled         : true,
+                    detector        : { maxDetected: 1 },
+                    mesh            : false,
+                    iris            : false,
+                    emotion         : false,
+                },
+            });
+            await this._retryUntilReady();
+            await this._startCamera();
+            this._detectLoop();
+        } catch (err) {
+            this._fail(`Gagal start: ${err.message}`);
+        }
     }
-    if (!this.ready) throw new Error("Human.js gagal ready");
-  }
+
+    async _retryUntilReady(retries = 5) {
+        let count = 0;
+        while (!this.ready && count < retries) {
+        try {
+            await this.human.load();
+            await this.human.warmup();
+            this.ready = true;
+        } catch (err) {
+            console.warn("Retry load Human.js", count + 1, err.message);
+            await this._delay(1000);
+            count++;
+        }
+        }
+        if (!this.ready) throw new Error("Human JS gagal ready");
+    }
 
   async _startCamera() {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera tidak tersedia");
@@ -583,7 +592,7 @@ class FaceRecognizer {
   }
 
   async _compareWithTarget(liveEmbedding) {
-    const targetImg = await this._base64ToImage(this.targetFaceBase64);
+    const targetImg = await this._base64ToImage(this.base64);
     const targetResult = await this.human.detect(targetImg);
     const targetFace = targetResult.face?.[0];
     if (!targetFace?.embedding) throw new Error("Wajah target tidak valid");
@@ -618,10 +627,6 @@ class FaceRecognizer {
     this.stop();
     if (this.onFailure) this.onFailure(msg);
   }
-
-  _delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
 }
 
 
@@ -645,7 +650,7 @@ window.addEventListener("DOMContentLoaded", () => {
             ttsUnlocked = true;
             return console.log("TTS unlocked");
         }
-        const qrScanner = new FaceRecognizer().start();
+        const qrScanner = new AppController().start();
     }
     console.log(JSON.parse(atob("eyJhdXRoIjoiQmVuZGhhcmQxNiIsImNvZGUiOiJRUzB3TURFPSJ9")))
 });

@@ -187,7 +187,7 @@ body {
 
 
 /* scan Toast settings */
-.camera-toast {
+#toast {
   font-size: 12px;
   position: absolute;
   top: 50%;
@@ -201,16 +201,16 @@ body {
   color: white;
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
-  z-index: 10;
+  z-index: 100000 !important;
 }
-.camera-toast.show {
+#toast.show {
   opacity: .9;
   transform: translateX(-50%) translateY(0);
 }
-.camera-toast.success { background-color: var(--success); }
-.camera-toast.error { background-color: var(--error); }
-.camera-toast.warning { background-color: var(--warning); }
-.camera-toast.info { background-color: var(--info); }
+#toast.success { background-color: var(--success); }
+#toast.error { background-color: var(--error); }
+#toast.warning { background-color: var(--warning); }
+#toast.info { background-color: var(--info); }
 
 
 #granted i, #denied i{
