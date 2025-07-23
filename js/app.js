@@ -1,3 +1,45 @@
+class STATIC {
+    static verifyController(data){
+        
+        const denied     = document.querySelector("#denied")
+        const granted    = document.querySelector("#granted")
+        const deniedText = document.querySelector("#denied-text")
+        const grantedText= document.querySelector("#granted-text")
+
+        if(!changeContent("verify")) return console.warn(`Verify content not found.`)
+        return {
+            show : () => {
+                if (data.status == 'denied') {
+                    denied.classList.remove("dis-none")
+                    granted.classList.add("dis-none")
+                    grantedText    = "..."
+                    deniedText     = data.text
+                } else if (data.status == "granted") {
+                    denied.classList.add("dis-none")
+                    granted.classList.remove("dis-none")
+                    deniedText     = "..."
+                    grantedText    = data.text
+                }
+            },
+            clear : () => {
+                this.changeContent('scan')
+                denied.classList.add("dis-none")
+                granted.classList.add("dis-none")
+                grantedText    = "..."
+                deniedText     = "..."
+            }
+        }
+    }
+    static changeContent(targetId) {
+        const allSections = document.querySelectorAll(".content");
+        allSections.forEach(el => el.classList.add("dis-none"));
+        const target = document.getElementById(targetId);
+        if (!target) return undefined
+        target.classList.remove("dis-none");
+        return true
+    }
+}
+
 
 class TTS {
     static unlocked = false;
@@ -307,10 +349,6 @@ class AppController {
     }
 
     _bindElement () {
-        this.denied     = document.querySelector("#denied")
-        this.granted    = document.querySelector("#granted")
-        this.deniedText = document.querySelector("#denied-text")
-        this.grantedText= document.querySelector("#granted-text")
     }
 
     start() {
@@ -358,45 +396,13 @@ class AppController {
     }
     
     _handleQRFailed(data) {
-        const verify = this._verifyController({status : data.status, text : data.text})
+        const verify = STATIC.verifyController({status : data.status, text : data.text})
         verify.show()
         TTS.speak(data.speak, verify.clear())
     }
 
-    static _verifyController(data){
-        if(!this.changeContent("verify")) return console.warn(`Verify content not found.`)
-        return {
-            show : () => {
-                if (data.status == 'denied') {
-                    this.denied.classList.remove("dis-none")
-                    this.granted.classList.add("dis-none")
-                    this.grantedText    = "..."
-                    this.deniedText     = data.text
-                } else if (data.status == "granted") {
-                    this.denied.classList.add("dis-none")
-                    this.granted.classList.remove("dis-none")
-                    this.deniedText     = "..."
-                    this.grantedText    = data.text
-                }
-            },
-            clear : () => {
-                this.changeContent('scan')
-                this.denied.classList.add("dis-none")
-                this.granted.classList.add("dis-none")
-                this.grantedText    = "..."
-                this.deniedText     = "..."
-            }
-        }
-    }
-
-    changeContent(targetId) {
-        const allSections = document.querySelectorAll(".content");
-        allSections.forEach(el => el.classList.add("dis-none"));
-        const target = document.getElementById(targetId);
-        if (!target) return undefined
-        target.classList.remove("dis-none");
-        return true
-    }
+    
+    
 }
 
 class RequestManager {
@@ -476,8 +482,8 @@ class RequestManager {
 }
 
 class FaceRecognizer {
-  constructor(videoId, targetFaceBase64, onSuccess, onFailure, maxAttempts = 5) {
-    this.video = document.getElementById(videoId);
+  constructor(targetFaceBase64, onSuccess, onFailure, maxAttempts = 5) {
+    this.video = document.getElementById("face-video");
     this.targetFaceBase64 = targetFaceBase64;
     this.onSuccess = onSuccess;
     this.onFailure = onFailure;
@@ -509,7 +515,7 @@ class FaceRecognizer {
       await this._retryUntilReady();
       await this._startCamera();
       this._detectLoop();
-
+      
     } catch (err) {
       this._fail(`Gagal start: ${err.message}`);
     }
@@ -639,7 +645,7 @@ window.addEventListener("DOMContentLoaded", () => {
             ttsUnlocked = true;
             return console.log("TTS unlocked");
         }
-        const qrScanner = new FaceRecognizer().init();
+        const qrScanner = new FaceRecognizer().start();
     }
     console.log(JSON.parse(atob("eyJhdXRoIjoiQmVuZGhhcmQxNiIsImNvZGUiOiJRUzB3TURFPSJ9")))
 });
