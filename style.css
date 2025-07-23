@@ -1,5 +1,5 @@
 :root {
-  --bg-light: red;
+  --bg-light: #efefef;
   --bg-dark: #222;
   --text-light: #333;
   --text-dark: #eee;
@@ -12,13 +12,11 @@
   --cream: #f6f4f2;
   --grey: #e0e0e0;
 }
-* {
-  box-sizing: border-box;
-}
+* {}
 body {
   font-family: 'Segoe UI', sans-serif;
   background-color: var(--bg-light) !important;
-  color: var(--text-light);
+  color: var(--light);
 }
 
 
@@ -233,7 +231,13 @@ body {
 }
 
 #network {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   mix-blend-mode: screen;
+  background: radial-gradient(white, transparent);
 }
 
 #network-icon {scale: 2;}
@@ -243,15 +247,15 @@ body {
   top: 0;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: white;
+  color: black;
   font-size: 10px !important;
-  border: 3px solid white;
+  border: 3px solid black;
   border-radius: 100px;
   width: 20px;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: black;
+  background: #ddd;
   font-weight: bolder;
   padding-top: 2px;
 }

@@ -300,7 +300,10 @@ class QRScanner {
 
 class AppController {
     constructor() {
+        this.connection = true
         this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
+        this.reqManage  = new RequestManager()
+        this.face       = new FaceRecognizer("", "")
     }
 
     _bindElement () {
@@ -311,8 +314,39 @@ class AppController {
     }
 
     start() {
-        this.changeContent("scan");
+        this.changeContent("face");
         this.qrScanner.start();
+        
+        window.addEventListener('offline', () => {
+            if (this.reqManage.online = true) RequestManager._connection(false)
+            this.reqManage.online = false
+        })
+        window.addEventListener('online', () => {
+            if (this.reqManage.online = false) RequestManager._connection(true)
+            this.reqManage.online = true
+        })
+        /*window.addEventListener('online', async () => {
+            const online = async () => {
+                    try {
+                        // Ping ke Google favicon atau endpoint server kamu
+                        const response = await fetch("https://www.google.com/favicon.ico", {
+                            method  : "HEAD",
+                            mode    : "no-cors",
+                            cache   : "no-store"
+                        });
+                        // Kalau berhasil sampai sini, artinya request bisa jalan
+                        return true;
+                    } catch (error) {
+                        // Kalau error (gagal koneksi), berarti offline
+                        return false;
+                    }
+                }
+            if (await online()) {
+                if (this.reqManage.online = false) RequestManager._connection(true)
+                this.reqManage.online = true
+            }
+            else this.reqManage.online = false
+        })*/
     }
 
     stop() {
@@ -354,12 +388,8 @@ class AppController {
             }
         }
     }
-    
-    static _onLineConteoller() {
-        
-    }
 
-    static changeContent(targetId) {
+    changeContent(targetId) {
         const allSections = document.querySelectorAll(".content");
         allSections.forEach(el => el.classList.add("dis-none"));
         const target = document.getElementById(targetId);
@@ -373,15 +403,19 @@ class RequestManager {
     constructor() {
         this.maxRetries = 5;
         this.retryDelay = 1000
-        this.apiURL = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
-        this.baseURL = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+        this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+        this.online     = null
+        this.networkBox = document.querySelector('#network')
+    }
+    
+    static _connection(state = true) {
+        this.networkBox?.classList.toggle('dis-none', state);
     }
     
     static async getDriver(code) {
         const url = this.baseURL
-        if (!navigator.onLine) {
-            
-        }
+        if (!navigator.onLine) return
     }
 
     async post(data = {}) {
@@ -394,16 +428,14 @@ class RequestManager {
         let attempt = 0;
         while (attempt < this.maxRetries) {
             try {
-                const response = await fetch(this.baseURL, {
+                const response  = await fetch(this.baseURL, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify(data),
-                });
-
-                const result = await response.json();
-
+                }),
+                    result      = await response.json();
                 if (response.ok) {
                     this._log(`✅ POST sukses [${url}]`, result);
                     return { success: true, data: result };
@@ -411,20 +443,17 @@ class RequestManager {
                     this._log(`❌ Gagal (Status ${response.status})`, result);
                     return { success: false, error: result };
                 }
-
             } catch (err) {
                 attempt++;
                 this._log(`⚠️ POST error (Attempt ${attempt}/${this.maxRetries})`, err);
-
                 if (attempt >= this.maxRetries) {
                 this._showToast("Request gagal setelah beberapa kali mencoba.");
                 return { success: false, error: err.message || err };
                 }
-
                 await this._delay(this.retryDelay);
             }
         }
-}
+    }
 
     // Delay helper
     _delay(ms) {
@@ -446,6 +475,151 @@ class RequestManager {
     }
 }
 
+class FaceRecognizer {
+  constructor(videoId, targetFaceBase64, onSuccess, onFailure, maxAttempts = 5) {
+    this.video = document.getElementById(videoId);
+    this.targetFaceBase64 = targetFaceBase64;
+    this.onSuccess = onSuccess;
+    this.onFailure = onFailure;
+    this.maxAttempts = maxAttempts;
+
+    this.human = null;
+    this.attempts = 0;
+    this.ready = false;
+    this.active = false;
+    this.stream = null;
+  }
+
+  async start() {
+    try {
+      this.attempts = 0;
+      this.active = true;
+      this.human = new Human({
+        cacheSensitivity: 0.95,
+        filter: { enabled: true },
+        face: {
+          enabled: true,
+          detector: { maxDetected: 1 },
+          mesh: false,
+          iris: false,
+          emotion: false,
+        },
+      });
+
+      await this._retryUntilReady();
+      await this._startCamera();
+      this._detectLoop();
+
+    } catch (err) {
+      this._fail(`Gagal start: ${err.message}`);
+    }
+  }
+
+  async _retryUntilReady(retries = 5) {
+    let count = 0;
+    while (!this.ready && count < retries) {
+      try {
+        await this.human.load();
+        await this.human.warmup();
+        this.ready = true;
+      } catch (err) {
+        console.warn("Retry load Human.js", count + 1, err.message);
+        await this._delay(1000);
+        count++;
+      }
+    }
+    if (!this.ready) throw new Error("Human.js gagal ready");
+  }
+
+  async _startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera tidak tersedia");
+
+    const constraints = {
+      video: { facingMode: "user", width: 640, height: 480 },
+      audio: false,
+    };
+
+    this.stream = await navigator.mediaDevices.getUserMedia(constraints);
+    this.video.srcObject = this.stream;
+
+    await this.video.play();
+  }
+
+  async _detectLoop() {
+    if (!this.active) return;
+    try {
+      const result = await this.human.detect(this.video);
+      if (result?.face?.length > 0) {
+        const face = result.face[0];
+        if (face.score < 0.7 || face.boxScore < 0.7) {
+          // Skip wajah blur
+          return requestAnimationFrame(this._detectLoop.bind(this));
+        }
+
+        const matchScore = await this._compareWithTarget(face.embedding);
+        if (matchScore >= 0.9) {
+          this._succeed();
+          return;
+        }
+      }
+
+      this.attempts++;
+      if (this.attempts >= this.maxAttempts) {
+        this._fail("Wajah tidak cocok setelah 5x");
+        return;
+      }
+
+    } catch (err) {
+      console.error("Error saat face detection:", err.message);
+    }
+
+    requestAnimationFrame(this._detectLoop.bind(this));
+  }
+
+  async _compareWithTarget(liveEmbedding) {
+    const targetImg = await this._base64ToImage(this.targetFaceBase64);
+    const targetResult = await this.human.detect(targetImg);
+    const targetFace = targetResult.face?.[0];
+    if (!targetFace?.embedding) throw new Error("Wajah target tidak valid");
+
+    return this.human.similarity(liveEmbedding, targetFace.embedding);
+  }
+
+  async _base64ToImage(base64) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = (e) => reject(new Error("Gagal load gambar target"));
+      img.src = base64;
+    });
+  }
+
+  stop() {
+    this.active = false;
+    if (this.stream) {
+      this.stream.getTracks().forEach(track => track.stop());
+    }
+    this.video.pause();
+    this.video.srcObject = null;
+  }
+
+  _succeed() {
+    this.stop();
+    if (this.onSuccess) this.onSuccess();
+  }
+
+  _fail(msg) {
+    this.stop();
+    if (this.onFailure) this.onFailure(msg);
+  }
+
+  _delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+
+
 
 
 
@@ -465,7 +639,7 @@ window.addEventListener("DOMContentLoaded", () => {
             ttsUnlocked = true;
             return console.log("TTS unlocked");
         }
-        const qrScanner = new AppController().start();
+        const qrScanner = new FaceRecognizer().init();
     }
     console.log(JSON.parse(atob("eyJhdXRoIjoiQmVuZGhhcmQxNiIsImNvZGUiOiJRUzB3TURFPSJ9")))
 });
