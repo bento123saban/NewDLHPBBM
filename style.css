@@ -278,6 +278,13 @@ body {
     top: 0;
     left: 0;
 }
+#face-prev-box {
+  position: absolute;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  width: 100%;
+}
 
 .countdown-overlay {
   position: fixed;
