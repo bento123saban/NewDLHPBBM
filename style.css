@@ -284,6 +284,11 @@ body {
   object-fit: cover;
   object-position: center;
   width: 100%;
+  background: red;
+}
+#face-preview {
+  height: 100%;
+  width: 100%;
 }
 
 .countdown-overlay {
