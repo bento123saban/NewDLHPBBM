@@ -420,10 +420,6 @@ class TTS {
     }
 }
 
-
-
-
-
 class RequestManager {
     constructor() {
         this.maxRetries = 5;
@@ -498,137 +494,146 @@ class RequestManager {
 }
 
 class FaceRecognizer {
-    constructor(targetFaceBase64, onSuccess, onFailure, maxAttempts = 5) {
-        this.targetFaceBase64 = targetFaceBase64;
+    constructor(targetBase64, onSuccess, onFailure) {
+        this.targetBase64 = targetBase64;
         this.onSuccess = onSuccess;
         this.onFailure = onFailure;
-        this.maxAttempts = maxAttempts;
+
+        this.video = document.getElementById("face-video");
+        this.canvas = document.createElement("canvas");
+        this.ctx = this.canvas.getContext("2d");
 
         this.human = null;
-        this.attempts = 0;
-        this.isRunning = false;
-        this.video = document.getElementById("face-video");
-        this.ctx = null;
         this.stream = null;
     }
 
     async start() {
         try {
-            this._log("Memulai FaceRecognizer...");
+            this._log("Memulai snapshot face recognizer...");
             if (!this.video) throw new Error("Elemen video tidak ditemukan");
 
-            const humanLib = (window.Human && window.Human.Human) || (typeof Human === "function" && Human);
-            if (!humanLib) throw new Error("Human.js tidak ditemukan atau belum siap");
+            const HumanLib = window.Human?.Human || window.Human;
+            if (!HumanLib) throw new Error("Human.js belum dimuat");
 
-            this.human = new humanLib({
-                cacheSensitivity: 0.95,
-                filter: { enabled: true },
+            this.human = new HumanLib({
+                backend : 'webgl',
+                modelBasePath: './models/',
                 face: {
                     enabled: true,
-                    detector: { maxDetected: 1 },
+                    detector: { enabled: true, maxDetected: 1 },
                     mesh: false,
                     iris: false,
                     emotion: false,
+                    description: true,
                 },
             });
 
             await this.human.load();
 
             this.stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: "user", // kamera depan
-                },
+                video: { facingMode: "user" },
                 audio: false,
             });
 
             this.video.srcObject = this.stream;
-            this.video.play();
-            this.ctx = this._getCanvasContext();
-            this.isRunning = true;
-            this._detectLoop();
+            await this.video.play();
+
+            this._log("Kamera aktif, tunggu wajah masuk frame...");
+
+            // Mulai proses tunggu dan countdown
+            this._waitAndCapture();
         } catch (err) {
             this._handleError(err);
         }
     }
 
-    async _detectLoop() {
-        if (!this.isRunning || this.attempts >= this.maxAttempts) {
-            this._log("Proses dihentikan, terlalu banyak percobaan.");
-            this.stop();
-            return this.onFailure("Wajah tidak terdeteksi");
-        }
-
-        if (!this.video || this.video.readyState < 2) {
-            requestAnimationFrame(() => this._detectLoop());
-            return;
-        }
-
+    async _waitAndCapture() {
         try {
-            const result = await this.human.detect(this.video);
-            const face = result?.face?.[0];
+            let detected = false;
 
-            if (face && face.confidence > 0.8 && face.boxScore > 0.8) {
-                const snapshot = this._captureFrame();
-                const matched = await this._compareFace(snapshot, this.targetFaceBase64);
+            // Deteksi wajah 1x/sampai benar2 ada
+            while (!detected) {
+                const result = await this.human.detect(this.video);
+                const face = result.face?.[0];
 
-                if (matched) {
-                    this._log("Wajah cocok. Verifikasi berhasil.");
-                    this.stop();
-                    return this.onSuccess();
+                if (face && face.boxScore > 0.8 && face.confidence > 0.8) {
+                    this._log("Wajah terdeteksi, mulai hitung mundur...");
+                    detected = true;
                 } else {
-                    this._log("Wajah tidak cocok.");
+                    await this._delay(500);
                 }
+            }
+
+            // Countdown
+            await this._countdownUI(3);
+            const snapshot = this._captureFrame();
+
+            const score = await this.human.match.similarity(snapshot, this.targetBase64);
+            this._log("Skor kecocokan wajah:", score);
+
+            if (score > 0.85) {
+                this._log("✅ Wajah cocok");
+                this.stop();
+                this.onSuccess();
             } else {
-                this._log("Wajah tidak jelas atau belum terdeteksi.");
+                this._log("❌ Wajah tidak cocok");
+                this.stop();
+                this.onFailure("Wajah tidak cocok");
             }
         } catch (err) {
-            this._log("Deteksi gagal, percobaan dilanjutkan:", err);
+            this._handleError(err);
         }
-
-        this.attempts++;
-        setTimeout(() => this._detectLoop(), 1000);
-    }
-
-    _getCanvasContext() {
-        const canvas = document.createElement("canvas");
-        canvas.width = this.video.videoWidth;
-        canvas.height = this.video.videoHeight;
-        return canvas.getContext("2d");
     }
 
     _captureFrame() {
+        this.canvas.width = this.video.videoWidth;
+        this.canvas.height = this.video.videoHeight;
         this.ctx.drawImage(this.video, 0, 0, this.video.videoWidth, this.video.videoHeight);
-        return this.ctx.canvas.toDataURL("image/jpeg", 0.95);
-    }
-
-    async _compareFace(liveImageBase64, targetBase64) {
-        try {
-            const liveTensor = await this.human.match.similarity(liveImageBase64, targetBase64);
-            return liveTensor > 0.85;
-        } catch (err) {
-            this._log("Gagal membandingkan wajah:", err);
-            return false;
-        }
+        return this.canvas.toDataURL("image/jpeg", 0.95);
     }
 
     stop() {
-        this.isRunning = false;
-        if (this.video) this.video.pause();
+        if (this.video) {
+            this.video.pause();
+            this.video.srcObject = null;
+        }
+
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
             this.stream = null;
         }
-        this._log("FaceRecognizer dihentikan.");
+
+        this._log("FaceRecognizerSnapshot dihentikan.");
     }
 
     _handleError(err) {
-        this._log("FaceRecognizer start error:", err);
+        this._log("❌ Error:", err.message || err);
         this.stop();
-        if (this.onFailure) this.onFailure(err.message || "Terjadi kesalahan");
+        if (typeof this.onFailure === "function") {
+            this.onFailure(err.message || "Terjadi kesalahan saat proses verifikasi wajah.");
+        }
+    }
+
+    _delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async _countdownUI(seconds) {
+        const label = document.getElementById("face-countdown");
+        if (!label) return;
+
+        for (let i = seconds; i >= 1; i--) {
+            label.innerText = i;
+            await this._delay(1000);
+        }
+
+        label.innerText = "📸";
+        await this._delay(500);
+        label.innerText = "";
     }
 
     _log(...args) {
-        console.log("[FaceRecognizer]", ...args);
+        console.log("[FaceRecognizerSnapshot]", ...args);
     }
 }
 
