@@ -2,7 +2,7 @@ class AppController {
     constructor() {
         this.connection = true
         this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
-        this.reqManage  = new RequestManager()
+        this.reqManage  = new RequestManager("", "")
         this.face       = new FaceRecognizer("", "")
     }
 
@@ -11,15 +11,11 @@ class AppController {
 
     start() {
         STATIC.changeContent("face");
-        this.face.start();
+        //this.face();
         
         window.addEventListener('offline', () => {
-            if (this.reqManage.online = true) RequestManager._connection(false)
+            if (this.reqManage.online = true) STATIC._connection(false)
             this.reqManage.online = false
-        })
-        window.addEventListener('online', () => {
-            if (this.reqManage.online = false) STATIC._connection(true)
-            this.reqManage.online = true
         })
         window.addEventListener('online', async () => {
             const online = async () => {
@@ -493,24 +489,25 @@ class RequestManager {
     }
 }
 
+/*
 class FaceRecognizer {
-    constructor(targetBase64, onSuccess, onFailure) {
-        this.targetBase64 = targetBase64;
+    constructor(onSuccess, onFailure) {
+        this.guideBox = document.querySelector("#face-guide-line");
+        this.targetImg = document.querySelector("#compare-photo"); // misalnya: "#target-photo"
         this.onSuccess = onSuccess;
         this.onFailure = onFailure;
-
-        this.video = document.getElementById("face-video");
+        this.video = document.querySelector("#face-video");
         this.canvas = document.createElement("canvas");
         this.ctx = this.canvas.getContext("2d");
-
         this.human = null;
-        this.stream = null;
+        this.countdownEl = null;
+        this.isRunning = false;
+        this.attemptingCapture = false;
     }
 
     async start() {
+        this.log("Memulai FaceRecognizer...");
         try {
-            this._log("Memulai snapshot face recognizer...");
-            if (!this.video) throw new Error("Elemen video tidak ditemukan");
 
             const HumanLib = window.Human?.Human || window.Human;
             if (!HumanLib) throw new Error("Human.js belum dimuat");
@@ -518,6 +515,10 @@ class FaceRecognizer {
             this.human = new HumanLib({
                 backend : 'webgl',
                 modelBasePath: './models/',
+                cacheSensitivity: 0.9,
+                warmup: "face",
+                async: true,
+                filter: { enabled: true },
                 face: {
                     enabled: true,
                     detector: { enabled: true, maxDetected: 1 },
@@ -528,114 +529,321 @@ class FaceRecognizer {
                 },
             });
 
-            await this.human.load();
+        await this.human.load();
+        await this.human.warmup();
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+        this.video.srcObject = stream;
+        await this.video.play();
+        this.isRunning = true;
+        this.log("Kamera dan Human.js siap.");
 
-            this.stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user" },
-                audio: false,
+        this.loop();
+        } catch (err) {
+        this.log("Gagal inisialisasi kamera: " + err.message);
+        //this.onFailure("CameraInitFailed");
+        }
+    }
+
+    async loop() {
+        if (!this.isRunning) return;
+
+        const result = await this.human.detect(this.video);
+        const face = result.face?.[0];
+        if (face && this.isInsideGuide(face.box) && !this.attemptingCapture) {
+        const isBlur = this.checkBlur();
+        if (!isBlur) {
+            this.log("Wajah terdeteksi dan tidak buram. Mulai countdown...");
+            this.attemptingCapture = true;
+            this.startCountdown(3, async () => {
+            const capture = this.captureFace();
+            await this.verifyFace(capture);
             });
-
-            this.video.srcObject = this.stream;
-            await this.video.play();
-
-            this._log("Kamera aktif, tunggu wajah masuk frame...");
-
-            // Mulai proses tunggu dan countdown
-            this._waitAndCapture();
-        } catch (err) {
-            this._handleError(err);
+        } else {
+            this.log("Wajah buram, abaikan.");
         }
+        }
+
+        requestAnimationFrame(this.loop.bind(this));
     }
 
-    async _waitAndCapture() {
-        try {
-            let detected = false;
+    isInsideGuide(box) {
+        const guide = this.guideBox.getBoundingClientRect();
+        const video = this.video.getBoundingClientRect();
 
-            // Deteksi wajah 1x/sampai benar2 ada
-            while (!detected) {
-                const result = await this.human.detect(this.video);
-                const face = result.face?.[0];
+        // Konversi koordinat wajah relatif terhadap posisi video
+        const faceX = box[0] * video.width + video.left;
+        const faceY = box[1] * video.height + video.top;
+        const faceW = box[2] * video.width;
+        const faceH = box[3] * video.height;
 
-                if (face && face.boxScore > 0.8 && face.confidence > 0.8) {
-                    this._log("Wajah terdeteksi, mulai hitung mundur...");
-                    detected = true;
-                } else {
-                    await this._delay(500);
-                }
-            }
+        const isInside =
+        faceX >= guide.left &&
+        faceY >= guide.top &&
+        faceX + faceW <= guide.right &&
+        faceY + faceH <= guide.bottom;
 
-            // Countdown
-            await this._countdownUI(3);
-            const snapshot = this._captureFrame();
-
-            const score = await this.human.match.similarity(snapshot, this.targetBase64);
-            this._log("Skor kecocokan wajah:", score);
-
-            if (score > 0.85) {
-                this._log("✅ Wajah cocok");
-                this.stop();
-                this.onSuccess();
-            } else {
-                this._log("❌ Wajah tidak cocok");
-                this.stop();
-                this.onFailure("Wajah tidak cocok");
-            }
-        } catch (err) {
-            this._handleError(err);
-        }
+        return isInside;
     }
 
-    _captureFrame() {
+    checkBlur() {
         this.canvas.width = this.video.videoWidth;
         this.canvas.height = this.video.videoHeight;
-        this.ctx.drawImage(this.video, 0, 0, this.video.videoWidth, this.video.videoHeight);
-        return this.canvas.toDataURL("image/jpeg", 0.95);
+        this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+
+        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        const grayscale = imageData.data.filter((_, i) => i % 4 !== 3); // exclude alpha
+        let variance = 0;
+        let mean = 0;
+
+        for (let i = 0; i < grayscale.length; i += 3) {
+        const gray = (grayscale[i] + grayscale[i + 1] + grayscale[i + 2]) / 3;
+        mean += gray;
+        }
+        mean /= grayscale.length / 3;
+
+        for (let i = 0; i < grayscale.length; i += 3) {
+        const gray = (grayscale[i] + grayscale[i + 1] + grayscale[i + 2]) / 3;
+        variance += Math.pow(gray - mean, 2);
+        }
+        variance /= grayscale.length / 3;
+
+        this.log("Blur score: " + variance.toFixed(2));
+        return variance < 150; // threshold, bisa disesuaikan
+    }
+
+    startCountdown(seconds, callback) {
+        this.countdownEl = document.createElement("div");
+        this.countdownEl.className = "countdown-overlay";
+        document.body.appendChild(this.countdownEl);
+
+        const update = () => {
+        this.countdownEl.innerText = seconds;
+        if (seconds > 0) {
+            seconds--;
+            setTimeout(update, 1000);
+        } else {
+            document.body.removeChild(this.countdownEl);
+            callback();
+        }
+        };
+        update();
+    }
+
+    captureFace() {
+        this.canvas.width = this.video.videoWidth;
+        this.canvas.height = this.video.videoHeight;
+        this.ctx.drawImage(this.video, 0, 0, this.canvas.width, this.canvas.height);
+        const dataUrl = this.canvas.toDataURL("image/jpeg", 0.9);
+        return dataUrl;
+    }
+
+    async verifyFace(capturedBase64) {
+        try {
+        const img = this.targetImg;
+        const compareResult = await this.human.compare(capturedBase64, img);
+
+        this.log("Hasil perbandingan: " + compareResult?.similarity);
+        if (compareResult?.similarity > 0.85) {
+            this.onSuccess(compareResult.similarity);
+        } else {
+            this.onFailure("FaceNotMatched");
+        }
+        } catch (err) {
+        this.log("Error saat verifikasi wajah: " + err.message);
+        this.onFailure("CompareFailed");
+        } finally {
+        this.attemptingCapture = false;
+        }
     }
 
     stop() {
-        if (this.video) {
-            this.video.pause();
-            this.video.srcObject = null;
+        this.isRunning = false;
+        if (this.video.srcObject) {
+        this.video.srcObject.getTracks().forEach((track) => track.stop());
         }
+        this.video.remove();
+        this.canvas.remove();
+        this.log("FaceRecognizer dihentikan.");
+    }
 
-        if (this.stream) {
-            this.stream.getTracks().forEach(track => track.stop());
-            this.stream = null;
+    log(message) {
+        const logPanel = document.querySelector("#debug-panel");
+        if (logPanel) {
+        const el = document.createElement("div");
+        el.textContent = `[FaceRecognizer] ${message}`;
+        logPanel.appendChild(el);
+        } else {
+        console.log("[FaceRecognizer]", message);
         }
+    }
+} */
 
-        this._log("FaceRecognizerSnapshot dihentikan.");
+class FaceRecognizer {
+  constructor(onSuccess = "", onFailure = "") {
+    this.videoElement = document.querySelector("#face-video");
+    this.targetImage = document.querySelector("#compare-photo");
+    this.onSuccess = onSuccess;
+    this.onFailure = onFailure;
+
+    this.human = null;
+
+    this._isRunning = false;
+    this._stream = null;
+    this._captureBtn = document.querySelector("#capture-face");
+
+
+    this._init();
+  }
+
+  async _init() {
+    try {
+      const HumanLib = window.Human?.Human || window.Human;
+      if (!HumanLib) throw new Error("Human.js belum dimuat");
+
+      this.human = new HumanLib({
+        backend: 'webgl',
+        modelBasePath: './models/',
+        cacheSensitivity: 0.9,
+        warmup: "face",
+        async: true,
+        filter: { enabled: true },
+        face: {
+          enabled: true,
+          detector: { enabled: true, maxDetected: 1 },
+          mesh: false,
+          iris: false,
+          emotion: false,
+          description: true,
+        },
+      });
+
+      await this.human.load();
+      await this._setupCamera();
+      this._captureBtn.onclick = () => {this._startCountdown(() => this._captureAndCompare());};
+      this._log("FaceRecognizer initialized.");
+    } catch (err) {
+      this._log("Init error: " + err.message);
+      this.onFailure && this.onFailure("Gagal inisialisasi kamera.");
+    }
+  }
+
+  async _setupCamera() {
+    this._log("Memulai kamera depan...");
+    this._stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false
+    });
+    this.videoElement.srcObject = this._stream;
+
+    return new Promise((resolve) => {
+      this.videoElement.onloadedmetadata = () => {
+        this.videoElement.play().then(resolve).catch(err => {
+          this._log("Play video error: " + err.message);
+          resolve(); // tetap resolve supaya tidak hang
+        });
+      };
+    });
+  }
+
+  async _captureAndCompare() {
+    try {
+      const faceDetected = await this._detectFace();
+      if (!faceDetected) {
+        this._log("❌ Tidak ada wajah terdeteksi.");
+        this.onFailure("Wajah tidak terdeteksi.");
+        return;
+      }
+
+      const isBlur = this._isImageBlur(faceDetected);
+      if (isBlur) {
+        this._log("⚠️ Wajah terlalu blur. Silakan ulangi.");
+        this.onFailure("Wajah terlalu blur, silakan ulangi.");
+        return;
+      }
+
+      const liveCanvas = document.createElement("canvas");
+      liveCanvas.width = this.videoElement.videoWidth;
+      liveCanvas.height = this.videoElement.videoHeight;
+      const ctx = liveCanvas.getContext("2d");
+      ctx.drawImage(this.videoElement, 0, 0, liveCanvas.width, liveCanvas.height);
+
+      const liveFace = await this.human.detect(liveCanvas);
+      const targetFace = await this.human.detect(this.targetImage);
+
+      const sim = await this.human.match(liveFace.face[0], targetFace.face[0]);
+
+      this._log(`✅ Similarity: ${Math.round(sim.similarity * 100)}%`);
+      if (sim.similarity > 0.85) {
+        this.onSuccess("Wajah cocok ✅");
+      } else {
+        this.onFailure("Wajah tidak cocok ❌");
+      }
+
+    } catch (err) {
+      this._log("Error saat capture/compare: " + err.message);
+      this.onFailure("Gagal proses verifikasi wajah.");
+    }
+  }
+
+  async _detectFace() {
+    const result = await this.human.detect(this.videoElement);
+    return result.face && result.face.length > 0 ? result.face[0] : null;
+  }
+
+  _isImageBlur(face) {
+    return face && face.quality && face.quality < 0.5;
+  }
+
+  _startCountdown(callback) {
+    let counter = 3;
+    const overlay = document.createElement("div");
+    overlay.className = "countdown-overlay";
+    overlay.textContent = counter;
+    document.body.appendChild(overlay);
+
+    const interval = setInterval(() => {
+      counter--;
+      if (counter <= 0) {
+        clearInterval(interval);
+        overlay.remove();
+        callback();
+      } else {
+        overlay.textContent = counter;
+      }
+    }, 1000);
+  }
+
+  stop() {
+    if (this._stream) {
+      this._stream.getTracks().forEach(track => track.stop());
+      this._stream = null;
+    }
+    this._isRunning = false;
+    this._log("Camera stopped.");
+  }
+
+  _log(msg) {
+    if (typeof this.logger === 'function') {
+      this.logger("[FaceRecognizer] " + msg);
+    } else if (typeof this.logger === 'object' && this.logger.log) {
+      this.logger.log("[FaceRecognizer]", msg);
+    } else {
+      console.log("[FaceRecognizer]", msg);
     }
 
-    _handleError(err) {
-        this._log("❌ Error:", err.message || err);
-        this.stop();
-        if (typeof this.onFailure === "function") {
-            this.onFailure(err.message || "Terjadi kesalahan saat proses verifikasi wajah.");
-        }
+    const debugPanel = document.querySelector("#debug-panel");
+    if (debugPanel) {
+      const p = document.createElement("p");
+      p.textContent = "[FaceRecognizer] " + msg;
+      debugPanel.appendChild(p);
+      debugPanel.scrollTop = debugPanel.scrollHeight;
     }
-
-    _delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    async _countdownUI(seconds) {
-        const label = document.getElementById("face-countdown");
-        if (!label) return;
-
-        for (let i = seconds; i >= 1; i--) {
-            label.innerText = i;
-            await this._delay(1000);
-        }
-
-        label.innerText = "📸";
-        await this._delay(500);
-        label.innerText = "";
-    }
-
-    _log(...args) {
-        console.log("[FaceRecognizerSnapshot]", ...args);
-    }
+  }
 }
+
+
+
+
 
 
 

@@ -66,20 +66,17 @@
 
     <div class="content grid-center p-20 hidden relative dis-none" id="face" >
         <div id="face-content" class="relative hidden">
-            <video id="face-video" autoplay muted playsinline></video>
-            <div class="scan-guide-line grid-center br-orange" id="face-guide-line">
-                <div class="line ln1"></div>
-                <div class="line ln2"></div>
-                <div class="line ln3"></div>
-                <div class="line ln4"></div>
+            <div id="face-vid-box" class="relative">
+                <video id="face-video" autoplay muted playsinline></video>
+                <div id="capture-face" class="grid-center"><i class="fas fa-image fz-20"></i></div>
+                <div id="face-prev-box">
+                    <img src="" alt="" id="face-preview">
+                </div>
             </div>
-            
-            <div id="face-toast" class="camera-toast p-5 show info">Memulai kamera...</div>
-
             <div id="data-driver" class="clr-default bolder uppercase p-10">
                 <div class="data-left h-100 grid-center">
                     <div class="driver-img hidden">
-                        <img src="./img/driver.jpeg" alt="driver-photo">
+                        <img src="./img/tes.jpg" alt="driver-photo" id="compare-photo">
                     </div>
                 </div>
                 <div class="data-right">
@@ -88,6 +85,12 @@
                     <span>X-001 DS</span>
                     <span>Pick UP L300</span>
                 </div>
+            </div>
+            <div class="scan-guide-line grid-center br-orange" id="face-guide-line">
+                <div class="line ln1"></div>
+                <div class="line ln2"></div>
+                <div class="line ln3"></div>
+                <div class="line ln4"></div>
             </div>
         </div>
     </div>
