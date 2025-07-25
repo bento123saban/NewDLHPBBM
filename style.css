@@ -76,7 +76,7 @@ body {
 }
 
 /* scan-guide-line */
-#face-guide-line {transform: translate(-50%, -90%) scale(1.2)!important;}
+#face-guide-line {transform: translate(-50%, -90%) scale(1.15)!important;}
 .scan-guide-line {
     grid-template-columns: repeat(2, 1fr);
     grid-template-rows: repeat(2, 1fr);
@@ -123,7 +123,6 @@ body {
   align-items: center;
   width: 100%;
   gap: 10px;
-  background: linear-gradient(45deg, white, transparent);
 }
 .data-left {
   width: 120px;
@@ -284,11 +283,17 @@ body {
   object-fit: cover;
   object-position: center;
   width: 100%;
-  background: red;
+  scale: .95;
+  overflow: hidden;
+  border-radius: 13px;
+  border: 3px solid whitesmoke;
+  z-index: 4;
 }
 #face-preview {
   height: 100%;
   width: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .countdown-overlay {
@@ -306,7 +311,7 @@ body {
 
 #capture-face {
   position: absolute;
-  bottom: 20px;
+  bottom: 30px;
   left: 50%;
   transform: translateX(-50%);
   width: 45px;
@@ -314,4 +319,32 @@ body {
   border-radius: 1000px;
   outline: 4px solid white;
   outline-offset: 5px;
+}
+
+/* gradasi cahaya yang bergerak */
+.skeleton-box {
+    height: 100px;
+    width: 60%;
+}
+.skeleton-box::after {
+    height: 100%;
+    width: 100%;
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%; height: 100%;
+    transform: translateX(-150%);
+    background: linear-gradient(
+        90deg,
+        rgba(224, 224, 224, 0) 0%,
+        rgba(245, 245, 245, 0.6) 50%,
+        rgba(224, 224, 224, 0) 100%
+  );
+    animation: shimmer 1.2s infinite;
+}
+@keyframes shimmer {
+    100% {
+        transform: translateX(150%);
+    }
 }
