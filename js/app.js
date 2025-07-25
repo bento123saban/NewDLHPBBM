@@ -538,6 +538,7 @@ class FaceRecognizer {
                     iris: false,
                     emotion: false,
                     description: true,
+                    embedding: true
                 },
             });
     
@@ -595,88 +596,124 @@ class FaceRecognizer {
     }
         
     captureAndVerify() {
-        const canvas    = document.createElement("canvas");
-        const context   = canvas.getContext("2d");
-        const video     = this.videoElement;
-    
-        // Ambil ukuran video
-        canvas.width    = video.videoWidth;
-        canvas.height   = video.videoHeight;
-    
-        // Gambar frame video ke canvas
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    
-        // Cek apakah buram
-        const isBlur = this.isImageBlurred(imageData);
-    
-        if (isBlur) {
-            STATIC.toast("Gambar buram, silakan ulangi", "error");
-            TTS.speak("Gambar buram, silakan ulangi", () => {
-                this.prviewBox.classList.add('dis-none')
-            })
-            return;
-        }
-        
-    
-        // Tampilkan hasil capture
-        this.previewer.src = canvas.toDataURL("image/jpeg");
-        this.prviewBox.classList.remove('dis-none')
-        
-        TTS.speak("Silahkan menunggu, sedang Verifikasi Wajah", () => {
-            // Lanjut verifikasi
-            this.verifyFace(canvas.toDataURL("image/jpeg"));
-        })
-        
-        
-    }
-    
-    async verifyFace(capturedBase64) {
         try {
-            if (!this.human || !this.targetImage || !capturedBase64) {
-                STATIC.toast("Verifikasi gagal: Data tidak lengkap.", 'error');
-                if (typeof this.onFailure === "function") this.onFailure();
+            const video = this.videoElement;
+
+            if (!video || video.readyState < 2) {
+                STATIC.toast("Kamera belum siap", "error");
+                TTS.speak("Kamera belum siap, mohon tunggu sebentar", () => {
+                    this.prviewBox.classList.add('dis-none');
+                });
                 return;
             }
-            this.stop()
-            STATIC.toast("Memproses verifikasi wajah...", 'info');
-    
-            // Deteksi wajah dari target foto (server)
-            const targetResult = await this.human.detect(this.targetImage);
-            const targetFace = targetResult.face?.[0];
-            if (!targetFace) {
-                STATIC.toast("Wajah target tidak terdeteksi.", 'error');
-                if (typeof this.onFailure === "function") this.onFailure();
+
+            const canvas = document.createElement("canvas");
+            const context = canvas.getContext("2d", { willReadFrequently: true });
+
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            if (!canvas.width || !canvas.height) {
+                STATIC.toast("Gagal mengambil gambar dari kamera", "error");
+                TTS.speak("Gagal mengambil gambar dari kamera", () => {
+                    this.prviewBox.classList.add('dis-none');
+                });
                 return;
             }
-    
-            // Deteksi wajah dari hasil capture webcam
-            const capturedResult = await this.human.detect(capturedBase64);
-            const capturedFace = capturedResult.face?.[0];
-            if (!capturedFace) {
-              STATIC.toast("Wajah hasil capture tidak terdeteksi.", 'error');
-              if (typeof this.onFailure === "function") this.onFailure();
-              return;
+
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+            const isBlur = this.isImageBlurred(imageData);
+            if (isBlur) {
+                STATIC.toast("Gambar buram, silakan ulangi", "error");
+                TTS.speak("Gambar buram, silakan ulangi", () => {
+                    this.prviewBox.classList.add('dis-none');
+                });
+                return;
             }
-            
-            // Hitung similarity score
-            const score = this.human.similarity(targetFace.embedding, capturedFace.embedding);
-            this._log(`Skor kesamaan wajah: ${score.toFixed(4)}`);
-        
-            // Evaluasi hasil
-            if (score >= 0.85) {
-                STATIC.toast("Verifikasi wajah berhasil.", 'success');
-                if (typeof this.onSuccess === "function") this.onSuccess();
-            } else {
-                STATIC.toast("Wajah tidak cocok.", 'error');
-                if (typeof this.onFailure === "function") this.onFailure();
+
+            // Tampilkan preview
+            this.previewer.src = canvas.toDataURL("image/jpeg");
+            this.prviewBox.classList.remove('dis-none');
+
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", () => {
+                this.verifyFace(canvas);
+            });
+
+        } catch (error) {
+            STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
+            console.error("[FaceRecognizer] Error saat capture:", error);
+            TTS.speak("Terjadi kesalahan saat mengambil gambar", () => {
+                this.prviewBox.classList.add('dis-none');
+            });
+        }
+    }
+
+
+    verifyFace(canvas) {
+        try {
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            const input = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            if (!this.human) {
+                STATIC.toast("Model belum siap", "error");
+                TTS.speak("Model belum siap, silakan ulangi", () => {
+                    this.prviewBox.classList.add("dis-none");
+                });
+                return;
             }
-    
-         } catch (err) {
-            this._log("Error verifikasi wajah:", err);
-            STATIC.toast("Terjadi kesalahan saat verifikasi wajah.", 'error');
-            if (typeof this.onFailure === "function") this.onFailure();
+
+            this.human.detect(input).then(result => {
+                console.log("[FaceRecognizer] Hasil deteksi:", result);
+
+                if (!result.face || result.face.length === 0) {
+                    STATIC.toast("Wajah tidak terdeteksi", "error");
+                    TTS.speak("Wajah tidak terdeteksi", () => {
+                        this.prviewBox.classList.add("dis-none");
+                    });
+                    return;
+                }
+
+                const detected = result.face[0];
+                if (!detected.embedding || detected.embedding.length === 0) {
+                    STATIC.toast("Data wajah tidak valid", "error");
+                    TTS.speak("Data wajah tidak valid", () => {
+                        this.prviewBox.classList.add("dis-none");
+                    });
+                    return;
+                }
+
+                const similarity = this.human.similarity(detected.embedding, this.targetEmbedding);
+                console.log("[FaceRecognizer] Similarity:", similarity);
+                console.log(similarity, "similarity")
+
+                if (similarity >= 0.50) {
+                    STATIC.toast("Wajah cocok ✅", "success");
+                    TTS.speak("Verifikasi wajah berhasil", () => {
+                        if (typeof this.onSuccess === "function") this.onSuccess();
+                    });
+                } else {
+                    STATIC.toast("Wajah tidak cocok", "error");
+                    TTS.speak("Wajah tidak cocok", () => {
+                        if (typeof this.onFailure === "function") this.onFailure();
+                    });
+                }
+            }).catch(err => {
+                console.error("[FaceRecognizer] Gagal deteksi:", err);
+                STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
+                TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
+                    this.prviewBox.classList.add("dis-none");
+                });
+            });
+
+        } catch (error) {
+            console.error("[FaceRecognizer] Fatal error di verifyFace:", error);
+            STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
+            TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
+                this.prviewBox.classList.add("dis-none");
+            });
         }
     }
 
@@ -708,7 +745,7 @@ class FaceRecognizer {
         const mean = sum / count;
         const variance = (sumSq / count) - (mean * mean);
 
-        return variance < 100; // Threshold bisa disesuaikan
+        return variance < 20; // Threshold bisa disesuaikan
     }
 
     _startCountdown(callback) {
