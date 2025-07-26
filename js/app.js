@@ -509,6 +509,7 @@ class FaceRecognizer {
         this.prviewBox      = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
         this.captureBtn     = document.querySelector("#capture-face");
+        this.tryImage       = document.querySelector("#ace-basic");
         
         this.onSuccess      = onSuccess;
         this.onFailure      = onFailure;
@@ -517,6 +518,32 @@ class FaceRecognizer {
     
         this._isRunning     = false;
         this._stream        = null;
+        
+        this.modelLoaded    = false;
+        this.humanReady     = false;
+        this.cameraReady    = false
+    }
+
+    readyState () {
+        let text    = "",
+            param   = true
+
+        if (!this.human) {
+            text += "Human JS tidak tersedia. "
+            param = false
+        } else if (!this.modelLoaded) {
+            text += "Model belum dimuat. "
+            param = false
+        } else if (!this.humanReady) {
+            text += "HUman JS belum siap. "
+            param = false
+        } else if (!this.cameraReady) {
+            text += "Kamera gagal dimuat"
+            param = false
+        }
+        TTS.speak("text")
+        STATIC.toast(text)
+        return param
     }
 
     async _init() {
@@ -543,19 +570,24 @@ class FaceRecognizer {
             });
     
             await this.human.load();
+            this.modelLoaded = true
+            await this.human.warmup();
+            this.humanReady = true
             await this._setupCamera();
+
         } catch (err) {
             this._log("Init error: " + err.message);
-            this.onFailure && this.onFailure("Gagal inisialisasi kamera.");
+            typeof this.onFailure === "function" && this.onFailure("Gagal inisialisasi kamera.");
         }
     }
     
     async _setupCamera() {
-        this._log("Memulai kamera depan...");
+        this._log("Memulai setup kamera depan...");
     
         try {
             const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             if (!hasMediaDevices) {
+                this.cameraReady = false
                 throw new Error("Perangkat tidak mendukung kamera.");
             }
     
@@ -563,15 +595,20 @@ class FaceRecognizer {
                 video: { facingMode: "user" },
                 audio: false
             }).catch(err => {
+                this.cameraReady = false
                 throw new Error("Akses kamera ditolak atau tidak tersedia: " + err.message);
             });
     
-            if (!stream) throw new Error("Stream kamera tidak tersedia.");
+            if (!stream) {
+                this.cameraReady = false
+                throw new Error("Stream kamera tidak tersedia.");
+            }
     
             this._stream = stream;
             this.videoElement.srcObject = stream;
     
             await this.videoElement.play().catch(err => {
+                this.cameraReady = false
                 throw new Error("Gagal memutar video kamera: " + err.message);
             });
     
@@ -590,13 +627,23 @@ class FaceRecognizer {
             // Fallback: sembunyikan tombol capture, matikan UI
             this.captureBtn.classList.add('dis-none');
             this.videoElement.srcObject = null;
-    
+            
+            this.cameraReady = false
             return false;
         }
     }
         
     captureAndVerify() {
         try {
+            if (!this.readyState()) return setTimeout(() => {
+                TTS.speak("Inisialisasi ulang.", () => {
+                    if(this.setupRetry >= 3) return TTS.speak("GAGAL Inisialisasi Face Verify setelah 3 kali percobaan", () => {
+                        STATIC.toast("[FATAL ERROR : Face Verify Gagal diinisialisasi!")
+                    })
+                    this.setupRetry ++
+                    this._init()
+                })
+            })
             const video = this.videoElement;
 
             if (!video || video.readyState < 2) {
@@ -651,7 +698,6 @@ class FaceRecognizer {
         }
     }
 
-
     verifyFace(canvas) {
         try {
             const ctx = canvas.getContext("2d", { willReadFrequently: true });
@@ -678,9 +724,10 @@ class FaceRecognizer {
 
                 const detected = result.face[0];
                 if (!detected.embedding || detected.embedding.length === 0) {
+                    console.warn("Embedding tidak valid:", detected.embedding);
                     STATIC.toast("Data wajah tidak valid", "error");
                     TTS.speak("Data wajah tidak valid", () => {
-                        this.prviewBox.classList.add("dis-none");
+                        setTimeout(() => this.prviewBox.classList.add("dis-none"), 500);
                     });
                     return;
                 }
