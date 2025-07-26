@@ -1,12 +1,16 @@
+
+
 class AppController {
     constructor() {
         this.connection = true
         this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
         this.reqManage  = new RequestManager("", "")
         this.face       = new FaceRecognizer(() => {
-            TTS.speak("MANTAP.")
-        }, () => {
-            TTS.speak("Gagal verifikasi wajah. Silakan coba lagi.")})
+                TTS.speak("MANTAP.")
+            }, () => {
+                //TTS.speak("Gagal verifikasi wajah. Silakan coba lagi.")
+
+            })
     }
 
     _bindElement () {
@@ -14,7 +18,7 @@ class AppController {
 
     start() {
         STATIC.changeContent("face");
-        this.face._init();
+        this.face.start();
         
         window.addEventListener('offline', () => {
             if (this.reqManage.online = true) STATIC._connection(false)
@@ -22,20 +26,20 @@ class AppController {
         })
         window.addEventListener('online', async () => {
             const online = async () => {
-                    try {
-                        // Ping ke Google favicon atau endpoint server kamu
-                        const response = await fetch("https://www.google.com/favicon.ico", {
-                            method  : "HEAD",
-                            mode    : "no-cors",
-                            cache   : "no-store"
-                        });
-                        // Kalau berhasil sampai sini, artinya request bisa jalan
-                        return true;
-                    } catch (error) {
-                        // Kalau error (gagal koneksi), berarti offline
-                        return false;
-                    }
+                try {
+                    // Ping ke Google favicon atau endpoint server kamu
+                    const response = await fetch("https://www.google.com/favicon.ico", {
+                        method  : "HEAD",
+                        mode    : "no-cors",
+                        cache   : "no-store"
+                    });
+                    // Kalau berhasil sampai sini, artinya request bisa jalan
+                    return true;
+                } catch (error) {
+                    // Kalau error (gagal koneksi), berarti offline
+                    return false;
                 }
+            }
             if (await online()) {
                 if (this.reqManage.online = false) STATIC._connection(true)
                 this.reqManage.online = true
@@ -57,8 +61,6 @@ class AppController {
         verify.show()
         TTS.speak(data.speak, verify.clear())
     }
-
-    
     
 }
 
@@ -413,9 +415,7 @@ class TTS {
     static speak(text, onEnd) {
         TTS.unlock();
 
-        if (window.speechSynthesis.speaking) {
-        window.speechSynthesis.cancel();
-        }
+        if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = "id-ID";
@@ -504,60 +504,31 @@ class RequestManager {
     }
 }
 
-
 class FaceRecognizer {
     constructor(onSuccess = "", onFailure = "") {
         this.videoElement   = document.querySelector("#face-video");
-        this.prviewBox      = document.querySelector('#face-prev-box');
+        this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
         this.captureBtn     = document.querySelector("#capture-face");
-        this.tryImage       = document.querySelector("#ace-basic");
-
-        
         this.targetImage    = document.querySelector("#compare-photo");
-        this.targetEmbedd   = null;
-        this.targetReady    = false;
-        
         this.onSuccess      = onSuccess;
         this.onFailure      = onFailure;
-    
+    }
+
+    async start() {
+        this.targetEmbedd   = null;
+        this.targetReady    = false;
         this.human          = null;
-    
         this._isRunning     = false;
         this._stream        = null;
-        
         this.modelLoaded    = false;
         this.humanReady     = false;
         this.cameraReady    = false;
-
         this.setupRetry     = 0;
         this.verifyRetry    = 0;
-    }
+        this.captureRetry   = 0
 
-    readyState () {
-        let text    = "",
-            param   = true
-
-        if (!this.human) {
-            text += "Human JS tidak tersedia. "
-            param = false
-        } else if (!this.modelLoaded) {
-            text += "Model belum dimuat. "
-            param = false
-        } else if (!this.humanReady) {
-            text += "HUman JS belum siap. "
-            param = false
-        } else if (!this.cameraReady) {
-            text += "Kamera gagal dimuat"
-            param = false
-        } else if (!this.targetReady) {
-            text += "Foto target gagal dimuat"
-            param = false
-        }
-        TTS.speak(text)
-        this._log(text)
-        STATIC.toast(text)
-        return param
+        await this._init();
     }
 
     async _init() {
@@ -582,53 +553,101 @@ class FaceRecognizer {
                     embedding: {enabled : true }
                 },
             });
-    
+
+            this.captureBtn.classList.add('dis-none');
+            this.captureBtn.onclick = () => {};
+
             await this.human.load();
             this.modelLoaded = true
             await this.human.warmup();
             this.humanReady = true
-            this.targetReady = await this.loadTargetEmbedd()
+            await this.loadTargetEmbedd()
             await this._setupCamera();
-            console.log(this.targetReady)
+
+            if(this.readyState()) {
+                this.captureBtn.classList.remove('dis-none');
+                TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
+                    STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
+                    TTS.speak("Tekan tombol untuk mengambil gambar.")
+                    this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
+                })
+            } else {
+                if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
+                    status : "init failed",
+                    text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
+                });
+                setTimeout(() => this._init(), 1000)
+                return this.setupRetry ++
+            }
 
         } catch (err) {
             this._log("Init error: " + err.message);
-            typeof this.onFailure === "function" && this.onFailure("Gagal inisialisasi kamera.");
+            return typeof this.onFailure === "function" && this.onFailure({
+                status : "init failed",
+                text   : "Error inisiasi Face Verify."
+            });
         }
+    }
+
+    readyState () {
+        let text    = "",
+            param   = true
+
+        if (!this.human) {
+            text += "Human JS tidak tersedia. "
+            param = false
+        } else if (!this.modelLoaded) {
+            text += "Model belum dimuat. "
+            param = false
+        } else if (!this.humanReady) {
+            text += "HUman JS belum siap. "
+            param = false
+        } else if (!this.cameraReady) {
+            text += "Kamera gagal dimuat. "
+            param = false
+        } else if (!this.targetReady) {
+            text += "Gagal inisiasi foto target. "
+            param = false
+        }
+        this._log("readyState - " + param )
+        if(text == "") return param
+        TTS.speak(text)
+        this._log(text)
+        STATIC.toast(text)
+        return param
     }
 
     async loadTargetEmbedd() {
         if (!this.targetImage || !this.human) {
             this._log("Target image atau Human belum siap");
-            return false;
+            return this.targetReady = false;
         }
 
         try {
             const result = await this.human.detect(this.targetImage);
             if (!result.face || result.face.length === 0) {
                 this._log("Tidak ditemukan wajah pada foto target");
-                return false;
+                return this.targetReady = false;;
             }
 
             const face = result.face[0];
             if (!face.embedding || face.embedding.length === 0) {
                 this._log("Embedding target kosong");
-                return false;
+                return this.targetReady = false;;
             }
 
             this.targetEmbedd = face.embedding;
             this._log("Target embedding berhasil dimuat");
-            return true;
+            return this.targetReady = true;
 
         } catch (err) {
             this._log("Gagal mengambil embedding target: " + err.message);
-            return false;
+            return this.targetReady = false;;
         }
     }
 
     async _setupCamera() {
         this._log("Memulai setup kamera depan...");
-    
         try {
             const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             if (!hasMediaDevices) {
@@ -645,7 +664,7 @@ class FaceRecognizer {
             });
     
             if (!stream) {
-                this.cameraReady = false
+                this.cameraReady = false;
                 throw new Error("Stream kamera tidak tersedia.");
             }
     
@@ -656,93 +675,80 @@ class FaceRecognizer {
                 this.cameraReady = false
                 throw new Error("Gagal memutar video kamera: " + err.message);
             });
-    
-            this._log("Kamera berhasil dinyalakan.");
-            STATIC.toast("Kamera wajah siap.", 'info');
-            TTS.speak("Posisikan wajah di dalam garis bantu. Pastikan wajah terlihat jelas. Lepaskan semua aksesoris dari wajah. Tekan tombol untuk mengambil gambar.");
-            this.captureBtn.classList.remove('dis-none');
-            this.cameraReady = true
+
+            if (!this.videoElement || this.videoElement.readyState < 3) {
+                this.cameraReady = false
+                throw new Error("Kamera belum siap, mohon tunggu sebentar.");
+            }
             
-            this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify())
-            return true;
-    
+            this._log("Kamera depan ready...");
+            return this.cameraReady = true;
         } catch (err) {
             this._log("Setup kamera gagal: " + err.message);
-            STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');
-    
-            // Fallback: sembunyikan tombol capture, matikan UI
-            this.captureBtn.classList.add('dis-none');
-            this.videoElement.srcObject = null;
-            
-            this.cameraReady = false
-            return false;
+            STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');            
+            return this.cameraReady = false;
         }
     }
-        
+
+    _startCountdown(callback) {
+        TTS.stop()
+        let counter         = 3;
+        const overlay       = document.createElement("div");
+        overlay.className   = "countdown-overlay";
+        overlay.textContent = counter;
+        document.body.appendChild(overlay);
+        this.captureBtn.classList.add('dis-none');
+
+        const interval = setInterval(() => {
+            counter--;
+            if( counter > 0) return overlay.textContent = counter;
+            clearInterval(interval);
+            overlay.remove();
+            callback();
+        }, 1000);
+    }
+
     captureAndVerify() {
         try {
-            if (!this.readyState()) return setTimeout(() => {
-                TTS.speak("Inisialisasi ulang.", () => {
-                    if(this.setupRetry >= 3) return TTS.speak("GAGAL Inisialisasi Face Verify setelah 3 kali percobaan", () => {
-                        STATIC.toast("[captureAndVerify] : Face Verify Gagal diinisialisasi!")
-                    })
-                    this.setupRetry ++
-                    //this._init()
-                }, 6000)
-            })
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah");
-            const video = this.videoElement;
+            const canvas    = document.createElement("canvas"),
+                context     = canvas.getContext("2d", { willReadFrequently: true }),
+                video       = this.videoElement
 
-            if (!video || video.readyState < 2) {
-                STATIC.toast("Kamera belum siap", "error");
-                TTS.speak("Kamera belum siap, mohon tunggu sebentar", () => {
-                    this.prviewBox.classList.add('dis-none');
-                });
-                return;
-            }
+            canvas.width    = video.videoWidth;
+            canvas.height   = video.videoHeight;
 
-            const canvas = document.createElement("canvas");
-            const context = canvas.getContext("2d", { willReadFrequently: true });
-
-
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-
-            if (!canvas.width || !canvas.height) {
-                STATIC.toast("Gagal mengambil gambar dari kamera", "error");
-                TTS.speak("Gagal mengambil gambar dari kamera", () => {
-                    this.prviewBox.classList.add('dis-none');
-                });
-                return;
-            }
+            if (!canvas.width || !canvas.height) return TTS.speak("Gagal mengambil gambar dari kamera. Silahkan ulangi", () => {
+                this.previewBox.classList.add('dis-none');
+                this.captureBtn.classList.remove('dis-none');
+                STATIC.toast("Gagal mengambil gambar dari kamera. Silahkan ulangi", "error");
+            });
 
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
             const isBlur = this.isImageBlurred(imageData);
-            if (isBlur) {
+            if (isBlur) return TTS.speak("Gambar buram, silakan ulangi", () => {
+                this.previewBox.classList.add('dis-none');
+                this.captureBtn.classList.remove('dis-none');
                 STATIC.toast("Gambar buram, silakan ulangi", "error");
-                TTS.speak("Gambar buram, silakan ulangi", () => {
-                    this.prviewBox.classList.add('dis-none');
-                });
-                return;
-            }
-
+            });
+            
             // Tampilkan preview
             this.previewer.src = canvas.toDataURL("image/jpeg");
-            this.prviewBox.classList.remove('dis-none');
-            return this.verifyFace(imageData);
-            if(faceMatching.matched) {
-                this._log("Wajah cocok : " + faceMatching.score)
-            } else {
-                this._log("Wajah tidak cocok : " + faceMatching.score)
-            }
-
+            this.previewBox.classList.remove('dis-none');
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", () => {
+                return this.verifyFace(imageData);
+            });
         } catch (error) {
-            STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
-            console.error("[FaceRecognizer] Error saat capture:", error);
-            TTS.speak("Terjadi kesalahan saat mengambil gambar", () => {
-                this.prviewBox.classList.add('dis-none');
+            if (this.captureRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
+                status : "capture failed",
+                text   : "Gagal capture face setelah 3 kali percobaan"
+            });
+            return TTS.speak("Terjadi kesalahan saat mengambil gambar. Silahkan Coba lagi.", () => {
+                this.previewBox.classList.add('dis-none');
+                STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
+                console.error("[FaceRecognizer] Error saat capture:", error);
+                this.captureRetry ++
             });
         }
     }
@@ -757,7 +763,6 @@ class FaceRecognizer {
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-
     verifyFace(imageData) {
         try {
 
@@ -771,7 +776,7 @@ class FaceRecognizer {
                 if (!result.face || result.face.length === 0) {
                     STATIC.toast("Wajah tidak terdeteksi", "error");
                     TTS.speak("Wajah tidak terdeteksi", () => {
-                        this.prviewBox.classList.add("dis-none");
+                        this.previewBox.classList.add("dis-none");
                     });
                     return;
                 }
@@ -781,7 +786,7 @@ class FaceRecognizer {
                     console.warn("Embedding tidak valid:", detected.embedding);
                     STATIC.toast("Data wajah tidak valid", "error");
                     TTS.speak("Data wajah tidak valid", () => {
-                        setTimeout(() => this.prviewBox.classList.add("dis-none"), 500);
+                        setTimeout(() => this.previewBox.classList.add("dis-none"), 500);
                     });
                     return;
                 }
@@ -807,7 +812,7 @@ class FaceRecognizer {
                 console.error("[FaceRecognizer] Gagal deteksi:", err);
                 STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
                 TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
-                    this.prviewBox.classList.add("dis-none");
+                    this.previewBox.classList.add("dis-none");
                 });
             });
 
@@ -815,7 +820,7 @@ class FaceRecognizer {
             console.error("[FaceRecognizer] Fatal error di verifyFace:", error);
             STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
             TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
-                this.prviewBox.classList.add("dis-none");
+                this.previewBox.classList.add("dis-none");
             });
         }
     }
@@ -851,48 +856,37 @@ class FaceRecognizer {
         return variance < 20; // Threshold bisa disesuaikan
     }
 
-    _startCountdown(callback) {
-        TTS.stop()
-        let counter         = 1;
-        const overlay       = document.createElement("div");
-        overlay.className   = "countdown-overlay";
-        overlay.textContent = counter;
-        document.body.appendChild(overlay);
 
-        const interval = setInterval(() => {
-            counter--;
-            if (counter <= 0) {
-                clearInterval(interval);
-                overlay.remove();
-                callback();
-            } else {
-                overlay.textContent = counter;
+    async stop() {
+        try {
+            if (this.human) {
+            // Stop semua proses Human.js (misalnya face detection, body tracking, dll)
+            this.human.stop(); // stop inference loop
+
+            // Hentikan stream kamera
+            if (this.videoElement && this.videoElement.srcObject) {
+                const tracks = this.videoElement.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                this.videoElement.srcObject = null;
             }
-        }, 1000);
-    }
 
-    stop() {
-        if (this._stream) {
-            this._stream.getTracks().forEach(track => track.stop());
-            this._stream = null;
+            // Clear canvas preview atau apapun yang sedang ditampilkan
+            const canvas = document.querySelector("canvas");
+            if (canvas) canvas.remove();
+
+            // Optional: buang instance kalau ingin benar-benar terminate
+            this.human = null;
+
+            console.log("🛑 Human.js terminated cleanly.");
+            }
+        } catch (err) {
+            console.error("❌ Gagal stop Human.js:", err);
         }
-        this._isRunning = false;
-        this._log("Camera stopped.");
     }
 
-    _log(msg) {
-        if (typeof this.logger === 'function') this.logger("[FaceRecognizer] " + msg);
-        else if (typeof this.logger === 'object' && this.logger.log) this.logger.log("[FaceRecognizer]", msg);
-        else console.log("[FaceRecognizer]", msg);
+    _log(msg) {console.log("[FaceRecognizer]", msg);}
     
-        const debugPanel = document.querySelector("#debug-panel");
-        if (debugPanel) {
-            const p = document.createElement("p");
-            p.textContent = "[FaceRecognizer] " + msg;
-            debugPanel.appendChild(p);
-            debugPanel.scrollTop = debugPanel.scrollHeight;
-        }
-    }
+        
 }
 
 
