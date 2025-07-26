@@ -535,11 +535,12 @@ class FaceRecognizer {
         try {
             const HumanLib = window.Human?.Human || window.Human;
             if (!HumanLib) throw new Error("Human.js belum dimuat");
-        
+            
             this.human = new HumanLib({
                 backend: 'webgl',
                 modelBasePath: './models/',
                 cacheSensitivity: 0.9,
+                chaceModels : true,
                 warmup: "face",
                 async: true,
                 filter: { enabled: true },
@@ -557,27 +558,34 @@ class FaceRecognizer {
             this.captureBtn.classList.add('dis-none');
             this.captureBtn.onclick = () => {};
 
-            await this.human.load();
-            this.modelLoaded = true
+            try {
+                await this.human.load();
+                this.modelLoaded = true;
+            } catch (err) {
+                this.modelLoaded = false;
+                console.error(error)
+            }
             await this.human.warmup();
             this.humanReady = true
             await this.loadTargetEmbedd()
             await this._setupCamera();
-
+            //return
             if(this.readyState()) {
                 this.captureBtn.classList.remove('dis-none');
+                this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
                 TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
                     STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
                     TTS.speak("Tekan tombol untuk mengambil gambar.")
                     this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
                 })
             } else {
+                
                 if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
                     status : "init failed",
                     text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
                 });
-                setTimeout(() => this._init(), 1000)
-                return this.setupRetry ++
+                //setTimeout(() => this._init(), 1000)
+                //return this.setupRetry ++
             }
 
         } catch (err) {
@@ -618,6 +626,7 @@ class FaceRecognizer {
     }
 
     async loadTargetEmbedd() {
+        this._log('Get target embedding...')
         if (!this.targetImage || !this.human) {
             this._log("Target image atau Human belum siap");
             return this.targetReady = false;
@@ -856,7 +865,6 @@ class FaceRecognizer {
         return variance < 20; // Threshold bisa disesuaikan
     }
 
-
     async stop() {
         try {
             if (this.human) {
@@ -886,7 +894,6 @@ class FaceRecognizer {
 
     _log(msg) {console.log("[FaceRecognizer]", msg);}
     
-        
 }
 
 
