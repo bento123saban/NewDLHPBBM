@@ -3,7 +3,9 @@ class AppController {
         this.connection = true
         this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
         this.reqManage  = new RequestManager("", "")
-        this.face       = new FaceRecognizer("", "")
+        this.face       = new FaceRecognizer(() => {
+            TTS.speak("MANTAP.")
+        }, "")
     }
 
     _bindElement () {
@@ -521,7 +523,10 @@ class FaceRecognizer {
         
         this.modelLoaded    = false;
         this.humanReady     = false;
-        this.cameraReady    = false
+        this.cameraReady    = false;
+
+        this.setupRetry     = 0;
+        this.verifyRetry    = 0;
     }
 
     readyState () {
@@ -638,7 +643,7 @@ class FaceRecognizer {
             if (!this.readyState()) return setTimeout(() => {
                 TTS.speak("Inisialisasi ulang.", () => {
                     if(this.setupRetry >= 3) return TTS.speak("GAGAL Inisialisasi Face Verify setelah 3 kali percobaan", () => {
-                        STATIC.toast("[FATAL ERROR : Face Verify Gagal diinisialisasi!")
+                        STATIC.toast("[captureAndVerify] : Face Verify Gagal diinisialisasi!")
                     })
                     this.setupRetry ++
                     this._init()
@@ -700,16 +705,13 @@ class FaceRecognizer {
 
     verifyFace(canvas) {
         try {
+
             const ctx = canvas.getContext("2d", { willReadFrequently: true });
             const input = ctx.getImageData(0, 0, canvas.width, canvas.height);
 
-            if (!this.human) {
-                STATIC.toast("Model belum siap", "error");
-                TTS.speak("Model belum siap, silakan ulangi", () => {
-                    this.prviewBox.classList.add("dis-none");
-                });
-                return;
-            }
+            if(this.verifyRetry >= 3) return TTS.speak("Gagal Verifikasi Wajah setelah 3 kali percobaan", () => {
+                STATIC.toast("[verifyFace] : Wajah tidak cocok", "error")
+            })
 
             this.human.detect(input).then(result => {
                 console.log("[FaceRecognizer] Hasil deteksi:", result);
@@ -742,12 +744,14 @@ class FaceRecognizer {
                         if (typeof this.onSuccess === "function") this.onSuccess();
                     });
                 } else {
+                    this.verifyRetry ++
                     STATIC.toast("Wajah tidak cocok", "error");
                     TTS.speak("Wajah tidak cocok", () => {
                         if (typeof this.onFailure === "function") this.onFailure();
                     });
                 }
             }).catch(err => {
+                this.verifyRetry ++
                 console.error("[FaceRecognizer] Gagal deteksi:", err);
                 STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
                 TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
