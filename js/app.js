@@ -412,7 +412,7 @@ class QRScanner {
             // 🔐 Decode base64 → string
             let decoded = "";
             try { decoded = atob(qrText);}
-            catch (err) {return console.error("Gagal decode Base64.");
+            catch (err) {return console.error("Gagal decode Base64.");}
 
             // 🧠 Parse JSON
             let qrData = null;
