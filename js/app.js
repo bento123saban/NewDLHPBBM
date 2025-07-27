@@ -533,7 +533,9 @@ class FaceRecognizer {
     }
 
     async _init() {
+
         try {
+
             const HumanLib = window.Human?.Human || window.Human;
             if (!HumanLib) throw new Error("Human.js belum dimuat");
             
@@ -566,6 +568,7 @@ class FaceRecognizer {
                 this.modelLoaded = false;
                 console.error("[Human] : " + err)
             }
+
             await this.human.warmup();
             this.humanReady = true
             await this.loadTargetEmbedd()
@@ -579,7 +582,6 @@ class FaceRecognizer {
                     this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
                 })
             } else {
-                
                 if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
                     status : "init failed",
                     text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
