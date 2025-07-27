@@ -505,7 +505,7 @@ class RequestManager {
 }
 
 class FaceRecognizer {
-    constructor(onSuccess = "", onFailure = "") {
+    constructor (onSuccess  = "", onFailure = "") {
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
