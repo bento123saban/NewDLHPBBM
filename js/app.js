@@ -564,7 +564,7 @@ class FaceRecognizer {
                 this.modelLoaded = true;
             } catch (err) {
                 this.modelLoaded = false;
-                console.error(error)
+                console.error("[Human] : " + err)
             }
             await this.human.warmup();
             this.humanReady = true
@@ -584,8 +584,8 @@ class FaceRecognizer {
                     status : "init failed",
                     text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
                 });
-                //setTimeout(() => this._init(), 1000)
-                //return this.setupRetry ++
+                setTimeout(() => this._init(), 1000)
+                return this.setupRetry ++
             }
 
         } catch (err) {
