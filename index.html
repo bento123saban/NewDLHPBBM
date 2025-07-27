@@ -20,7 +20,7 @@
             <div class="bg-img dis-none absolute-top grid-center pt-3">
                 <img src="/asset/ilustrat/qrCodeScanner.png">
             </div>
-            <div class="wave-content">
+            <div class="wave-content dis-none">
                 <!--Waves Container-->
                 <svg class="waves relative w-100 h-100" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 24 150 28" preserveAspectRatio="none" shape-rendering="auto">
                     <defs>
@@ -46,7 +46,7 @@
 
     <div class="content grid-center p-20 hidden relative dis-none" id="scan" >
         <div id="camera-content" class="relative hidden">
-            <h1 class="absolute-top align-center w-100 p-30 clr-white" id="scan-head">Scan QR Code</h1>
+            <h1 class="absolute-top align-center w-100 p-30 clr-white" id="scan-head">QR Code Scanner</h1>
             <span class="dis-block align-center fz-10 bolder clr-white" id="cams-timeout-counter">Counter</span>
             <div id="qr-reader" class="relative w-100 h-100 hidden"></div>
             <div id="camera-btn" class="flex-evenly">
@@ -61,8 +61,7 @@
                 <div class="line ln3"></div>
                 <div class="line ln4"></div>
             </div>
-            
-            <div id="scan-toast" class="camera-toast p-5 show info">Memulai kamera...</div>
+            <div id="scan-warn"></div>
         </div>
     </div>
 
@@ -81,7 +80,19 @@
                             <i class="fas fa-ban fz-40"></i>
                         </div>
                         <div class="unmatched-text">
-                            <h3 class="align-center uppercase">Face Unmacth</h3>
+                            <h3 class="align-center uppercase">Tidak Cocok</h3>
+                            <span class="fz-12 bolder">Wajah tidak cocok, silahkan coba lagi.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="matched-box" class="white grid-center w-100 h-100 dis-none">
+                    <div class="unmatched-content clr-red grid-center">
+                        <div class="unmatched-icon">
+                            <i class="fas fa-ban fz-40"></i>
+                        </div>
+                        <div class="unmatched-text">
+                            <h3 class="align-center uppercase">Tidak Cocok</h3>
                             <span class="fz-12 bolder">Wajah tidak cocok, silahkan coba lagi.</span>
                         </div>
                     </div>
@@ -132,13 +143,16 @@
     </div>
 
     <div class="content grid-center p-20 dis-none" id="verify">
-        <div id="granted" class="align-center dis-none">
+        <div id="granted" class="align-center">
             <i class="fas fa-check fz-30 grid-center m-auto"></i>
             <span class="dis-block align-center mt-3 uppercase bolder fz-20 clr-white" id="granted-text">...</span>
         </div>
         <div id="denied" class="align-center dis-none">
             <i class="fas fa-x fz-30 grid-center m-auto"></i>
             <span class="dis-block align-center mt-3 uppercase bolder fz-20  clr-white" id="granted-text">...</span>
+        </div>
+        <div id="verify-confirm">
+            <input type="text" id="confirm-code">
         </div>
     </div>
 

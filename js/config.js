@@ -1,5 +1,9 @@
 if(!localStorage.getItem("bnd-blc")) localStorage.setItem("bnd-blc", JSON.stringify([]))
 
+window.addEventListener("load", () => {
+    
+});
+
 
     /*
 

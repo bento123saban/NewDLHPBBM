@@ -225,6 +225,11 @@ body {
     color: red;
     border: 3px solid red;
 }
+#verify-confirm {
+  position: absolute;
+  bottom: 70px;
+  width: 200px;
+}
 
 #network {
   position: fixed;
@@ -349,7 +354,8 @@ body {
     }
 }
 
-#unmatched-box {
+#unmatched-box, 
+#matched-box {
   position: absolute;
   top: 0;
   left: 0;
@@ -359,6 +365,7 @@ body {
   background: radial-gradient(white, rgba(255,255,255, .9), transparent);
 }
 
-#unmatched-box i {
+#unmatched-box i, 
+#matched-box i {
   font-size: 60px !important;
 }

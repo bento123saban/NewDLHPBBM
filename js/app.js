@@ -3,28 +3,27 @@
 class AppController {
     constructor() {
         this.connection = true
-        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this), 15000);
-        this.reqManage  = new RequestManager("", "")
-        this.face       = new FaceRecognizer(() => {
-                TTS.speak("MANTAP.")
-            }, () => {
-                //TTS.speak("Gagal verifikasi wajah. Silakan coba lagi.")
-
-            })
+        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
+        this.face       = new FaceRecognizer(this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
+        this.startAll   = false;
     }
 
     _bindElement () {
     }
 
     start() {
-        STATIC.changeContent("face");
-        this.face.start();
+        if(!navigator.onLine) return STATIC._connection(false)
+        if(navigator.onLine) this.connection = true
+        this.startAll = true
+        STATIC.changeContent("scan");
+        this.qrScanner.start();
         
         window.addEventListener('offline', () => {
             if (this.reqManage.online = true) STATIC._connection(false)
-            this.reqManage.online = false
+            //this.reqManage.online = false
         })
         window.addEventListener('online', async () => {
+            if(this.startAll == false) return this.start()
             const online = async () => {
                 try {
                     // Ping ke Google favicon atau endpoint server kamu
@@ -50,6 +49,15 @@ class AppController {
 
     stop() {
         this.qrScanner.stop();
+        this.face.stop()
+    }
+
+    _handleFaceSuccess() {
+
+    }
+
+    _handleFaceFailed() {
+        
     }
 
     _handleQRSuccess(code) {
@@ -59,285 +67,17 @@ class AppController {
     _handleQRFailed(data) {
         const verify = STATIC.verifyController({status : data.status, text : data.text})
         verify.show()
-        TTS.speak(data.speak, verify.clear())
+        TTS.speak(data.speak, "", setTimeout(() => verify.clear(), 2500))
     }
     
 }
 
-class QRScanner {
-    constructor(onSuccess, onFailed, timeoutMs = 30000) {
-        this.onSuccess          = onSuccess;
-        this.onFailed           = onFailed;
-        this.timeoutMs          = timeoutMs;
-        this.falseCount         = 0
-
-        this.qrCodeScanner      = null;
-        this.timeoutCounter     = Math.floor(this.timeoutMs / 1000);
-        this.countdownInterval  = null;
-
-        this.isScanning         = false;
-        this.isRunning          = false;
-        this.isPaused           = false;
-        this.hasStarted         = false;
-        this.isVerify           = false;
-
-        this.regionEl           = document.getElementById("qr-reader");
-        this.restartBtn         = document.getElementById("restart-scan-btn");
-        this.counterEl          = document.getElementById("cams-timeout-counter");
-        this.scanGuide          = document.querySelector(".scan-guide-line");
-
-        this._bindUI();
-    }
-
-    _bindUI() {
-        if (this.restartBtn) this.restartBtn.onclick = () => this.start();
-        /* if (this.manualBtn) {
-            this.manualBtn.onclick = () => {
-                this.stop();
-                if (typeof this.onFailure === "function") this.onFailure("manual-input");
-            };
-        } */
-    }
-
-    async start() {
-        if (this.isScanning || this.isRunning || this.isVerify) return;
-        if (typeof Html5Qrcode === "undefined") return STATIC.toast("Library QR belum dimuat : html5qrcode-not-found", "error")
-        
-        TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
-        
-        STATIC.toast("Memulai kamera...", "info");
-        this._showElement(this.regionEl);
-        this._hideElement(this.restartBtn);
-        this._showElement(this.scanGuide);
-        //this._showElement(this.manualBtn);
-
-        this.isScanning = true;
-        this.timeoutCounter = Math.floor(this.timeoutMs / 1000);
-
-        try {
-            this.qrCodeScanner = new Html5Qrcode("qr-reader", {
-                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
-            });
-
-            const devices = await Html5Qrcode.getCameras();
-            const camId = devices.find(d => d.label.toLowerCase().includes("front"))?.id || devices[0]?.id;
-            if (!camId) throw new Error("Tidak ada kamera ditemukan.");
-            
-            this.isRunning = true
-            this._startCountdown();
-            
-            await this.qrCodeScanner.start(
-                camId, // ✅ Gunakan langsung string ID, bukan object
-                {
-                    fps: 50,
-                    rememberLastUsedCamera: true,
-                },
-                (decodedText) => {
-                    this.pause()
-                    this._QRVerify(decodedText)
-                },
-                () => {
-                    this.isVerify = false;
-                    //console.log(this.isVerify, "QRScanner is running")
-                } // Ignore decoding errors
-            )
-            this.hasStarted = true;
-        } catch (err) {
-            STATIC.toast("Gagal membuka kamera", "error");
-            this.isRunning = false;
-            this.stop();
-            console.error("QRScanner start error:", err.message);
-        }
-    }
-
-    async stop() {
-        if(this.isVerify) return
-
-        this._clearCountdown();
-
-        this._hideElement(this.scanGuide);
-        if(this.hasStarted) this._showElement(this.restartBtn);
-
-        if (this.qrCodeScanner) {
-            try {
-                await this.qrCodeScanner.stop();
-                await this.qrCodeScanner.clear();
-            } catch (err) {
-                console.warn("QRScanner stop error:", err.message);
-            }
-        }
-
-        this.qrCodeScanner  = null;
-        this.isRunning      = false;
-        this.isVerify       = false
-        this.hasStarted     = false;
-        this.isScanning     = false;
-        this.isPaused       = false;
-        this.isVerify       = false;
-        this.falseCount     = 0
-    }
-
-    async pause() {
-        if (this.qrCodeScanner && this.isScanning && !this.isPaused) {
-            try {
-                await this.qrCodeScanner.pause();
-                this.isPaused = true;
-                this._clearCountdown()
-                console.log("Scanner paused");
-            } catch (err) {
-                console.warn("Pause gagal:", err);
-            }
-        }
-    }
-
-    async resume() {
-        if (this.qrCodeScanner && this.isPaused) {
-            try {
-                await this.qrCodeScanner.resume();
-                this.isPaused = false;
-                console.log("Scanner resumed");
-                this._startCountdown()
-            } catch (err) {
-                console.warn("Resume gagal:", err);
-            }
-        }
-    }
-
-    _QRVerify(qrText) {
-        if (this.isVerify || !qrText || qrText.length <= 10) return;
-
-        this.isVerify = true;
-
-        const blockedQR = JSON.parse(localStorage.getItem("bnd-blc"))
-        if  (blockedQR.includes(qrText)) {
-            this.stop()
-            return this.onFailed({
-                status  : "denied",
-                text    : 'QR Code Diblokir',
-                speak   : 'QR Code telah terblokir. Hubungi admin untuk melepas blokir'
-            })
-        }
-        
-        STATIC.toast("Verifikasi QR", "info");
-
-        let timeout = null;
-
-        try {
-            // ⏱️ Timeout handler untuk memastikan tidak stuck
-            timeout = setTimeout(() => {
-                this.isVerify = false;
-                this._showToast("Timeout verifikasi QR", "error");
-                console.warn("QR Verification timeout");
-                return
-            }, 10000); // 10 detik max proses
-
-            // 🚫 Empty/null/undefined check
-            if (!qrText || typeof qrText !== "string") return console.log("QR kosong atau bukan string.");
-
-            // ✅ Validasi Base64 ketat (panjang kelipatan 4 dan regex)
-            const base64Regex = /^(?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)?$/;
-            if (!base64Regex.test(qrText)) return console.log("QR bukan format Base64 valid.");
-
-            // 🔐 Decode base64 → string
-            let decoded = "";
-            try { decoded = atob(qrText);}
-            catch (err) {return console.log("Gagal decode Base64.");}
-
-            // 🧠 Parse JSON
-            let qrData = null;
-            try {qrData = JSON.parse(decoded);}
-            catch (err) {throw new Error("QR bukan JSON valid.");}
-            
-            // 📋 Validasi struktur QR
-            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") throw new Error("QR tidak memiliki otorisasi atau auth salah.");
-            if (!qrData.code) throw new Error('Code tidak ditemukan atau invalid')
-            
-            this.onSuccess(qrData.code)
-            clearTimeout(timeout);
-            this.stop(); // stop QRScanner
-            return console.log("QR Bendhard16")
-
-        } catch (err) {
-            console.error("❌ Error verifikasi QR:", err.message);
-            STATIC.toast(err.message || "QR tidak valid", "error");
-            this.falseCount ++
-        } finally {
-            if(this.falseCount === 15) return TTS.speak("QR Code diblokir. Hubungi admin untuk konfirmasi lebih lanjut.",
-                () => {
-                    this._blockedQR(qrText)
-                    this.resume()
-                    this.isVerify = false;
-                }
-            )
-            if(this.falseCount === 5 || this.falseCount === 10) return TTS.speak("QR Code gagal di verifikasi. Posisikan dengan benar, pastikan dapat terlihat dengan jelas di Kamera. jang terlalu jau dan jangan terlalu dekat. Bersihakan kartu QR Code pastikan tidak ada noda. Jika sudah silahkan coba lagi.",
-                () => {
-                    this.isVerify = false;
-                    this.resume()
-                })
-            if(this.falseCount > 15) return
-            this.isVerify = false;
-            this.resume()
-            clearTimeout(timeout)
-        }
-    }
-
-    _blockedQR(qrtext) {
-        const blockedData = JSON.parse(localStorage.getItem("bnd-blc") || "[]");
-        if (blockedData.includes(qrtext)) return console.warn("QR Code sudah diblokir sebelumnya:", qrtext);
-        blockedData.push(qrtext)
-        localStorage.setItem("bnd-blc", JSON.stringify(blockedData))
-        //return true
-    }
-
-    _startCountdown() {
-        this._updateCountdownDisplay();
-        if (this.countdownInterval) clearInterval(this.countdownInterval);
-
-        this.countdownInterval = setInterval(() => {
-            this.timeoutCounter--;
-            this._updateCountdownDisplay();
-
-            if (this.timeoutCounter <= 0) {
-                clearInterval(this.countdownInterval);
-                this.stop();
-                STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning");
-                TTS.speak(
-                    "Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang",
-                    () => {
-                        TTS.speak("Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang")
-                        STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning")
-                    }
-                )
-            }
-        }, 1000);
-    }
-
-    _clearCountdown() {
-        if (this.countdownInterval) clearInterval(this.countdownInterval);
-        if (this.counterEl) this.counterEl.innerText = "";
-    }
-
-    _updateCountdownDisplay() {
-        if (this.counterEl) this.counterEl.innerText = `${this.timeoutCounter}s`;
-    }
-
-    _showElement(el) {
-        if (!el) return;
-        el.classList.remove("hidden", "dis-none");
-    }
-
-    _hideElement(el) {
-        if (!el) return;
-        el.classList.add("dis-none");
-    }
-}
-
 class STATIC {
     static verifyController(data){
-        const denied     = document.querySelector("#denied")
-        const granted    = document.querySelector("#granted")
-        const deniedText = document.querySelector("#denied-text")
-        const grantedText= document.querySelector("#granted-text")
+        const denied    = document.querySelector("#denied"),
+            granted     = document.querySelector("#granted"),
+            deniedText  = document.querySelector("#denied-text"),
+            grantedText = document.querySelector("#granted-text")
 
         if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
         return {
@@ -345,21 +85,23 @@ class STATIC {
                 if (data.status == 'denied') {
                     denied.classList.remove("dis-none")
                     granted.classList.add("dis-none")
-                    grantedText    = "..."
-                    deniedText     = data.text
+                    grantedText.textContent    = "..."
+                    deniedText.textContent     = data.text
                 } else if (data.status == "granted") {
                     denied.classList.add("dis-none")
                     granted.classList.remove("dis-none")
-                    deniedText     = "..."
-                    grantedText    = data.text
+                    deniedText.textContent     = "..."
+                    grantedText.textContent    = data.text
+                } else if (data.confirm) {
+                    
                 }
             },
             clear : () => {
                 STATIC.changeContent('scan')
                 denied.classList.add("dis-none")
                 granted.classList.add("dis-none")
-                grantedText    = "..."
-                deniedText     = "..."
+                grantedText.textContent    = "..."
+                deniedText.textContent     = "..."
             }
         }
     }
@@ -439,7 +181,6 @@ class RequestManager {
         this.retryDelay = 1000
         this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
-        this.online     = null
     }
     
     static async getDriver(code) {
@@ -504,6 +245,275 @@ class RequestManager {
     }
 }
 
+class QRScanner {
+    constructor(onSuccess, onFailed) {
+        this.onSuccess          = onSuccess;
+        this.onFailed           = onFailed;
+        this.falseCount         = 0;
+        this.maxFalse           = 15
+        this.counter            = 5; // 60 detik timeout
+
+        this.qrCodeScanner      = null;
+        this.countdownInterval  = null;
+        this.timeoutCounter     = this.counter;
+
+        this.isScanning         = false;
+        this.isRunning          = false;
+        this.isPaused           = false;
+        this.hasStarted         = false;
+        this.isVerify           = false;
+
+        this.regionEl           = document.getElementById("qr-reader");
+        this.restartBtn         = document.getElementById("restart-scan-btn");
+        this.counterEl          = document.getElementById("cams-timeout-counter");
+        this.scanGuide          = document.querySelector(".scan-guide-line");
+
+        this._bindUI();
+    }
+
+    _bindUI() {
+        if (this.restartBtn) this.restartBtn.onclick = () => this.start();
+    }
+
+    async start() {
+        if (this.isScanning || this.isRunning || this.isVerify) return;
+        if (typeof Html5Qrcode === "undefined") return STATIC.toast("Library QR belum dimuat : html5qrcode-not-found", "error")
+        
+        TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
+        
+        STATIC.toast("Memulai kamera...", "info");
+        this._showElement(this.regionEl);
+        this._hideElement(this.restartBtn);
+        this._showElement(this.scanGuide);
+
+        this.isScanning = true;
+        this.timeoutCounter = this.counter; // Reset timeout counter
+
+        try {
+            this.qrCodeScanner = new Html5Qrcode("qr-reader", {
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+            });
+
+            const devices = await Html5Qrcode.getCameras();
+            const camId = devices.find(d => d.label.toLowerCase().includes("front"))?.id || devices[0]?.id;
+            if (!camId) throw new Error("Tidak ada kamera ditemukan.");
+            
+            this.isRunning = true
+            this._startCountdown();
+            
+            await this.qrCodeScanner.start(
+                camId, // ✅ Gunakan langsung string ID, bukan object
+                {
+                    fps: 50,
+                    rememberLastUsedCamera: true,
+                },
+                (decodedText) => {
+                    this.pause()
+                    this._QRVerify(decodedText)
+                },
+                () => this.isVerify = false
+            )
+            this.hasStarted = true;
+        } catch (err) {
+            STATIC.toast("Gagal membuka kamera", "error");
+            this.isRunning = false;
+            this.stop();
+            console.error("QRScanner start error:", err.message);
+        }
+    }
+
+    async stop() {
+        if(this.isVerify) return
+
+        this._clearCountdown();
+
+        this._hideElement(this.scanGuide);
+        if(this.hasStarted) this._showElement(this.restartBtn);
+
+        if (this.qrCodeScanner) {
+            try {
+                await this.qrCodeScanner.stop();
+                await this.qrCodeScanner.clear();
+            } catch (err) {
+                console.warn("QRScanner stop error:", err.message);
+            }
+        }
+
+        this.qrCodeScanner  = null;
+        this.isRunning      = false;
+        this.isVerify       = false
+        this.hasStarted     = false;
+        this.isScanning     = false;
+        this.isPaused       = false;
+        this.isVerify       = false;
+        this.falseCount     = 0
+    }
+
+    async pause() {
+        if (this.qrCodeScanner && this.isScanning && !this.isPaused) {
+            try {
+                await this.qrCodeScanner.pause();
+                this.isPaused = true;
+                this._clearCountdown()
+                console.log("Scanner paused");
+            } catch (err) {
+                console.warn("Pause gagal:", err);
+            }
+        }
+    }
+
+    async resume() {
+        if (this.qrCodeScanner && this.isPaused) {
+            try {
+                await this.qrCodeScanner.resume();
+                this.isPaused = false;
+                console.log("Scanner resumed");
+                this._startCountdown()
+            } catch (err) {
+                console.warn("Resume gagal:", err);
+            }
+        }
+    }
+
+    _QRVerify(qrText) {
+        if (this.isVerify || !qrText || qrText.length <= 10) return;
+
+        this.isVerify = true;
+        /*
+        const blockedQR = JSON.parse(localStorage.getItem("bnd-blc"))
+        if  (blockedQR.includes(qrText)) {
+            this.stop()
+            return this.onFailed({
+                status  : "denied",
+                text    : 'QR Code Diblokir',
+                speak   : 'QR Code telah terblokir. Hubungi admin untuk melepas blokir'
+            })
+        } */
+
+        STATIC.toast("Verifikasi QR", "info")
+
+        let timeout = null;
+
+        try {
+            timeout = setTimeout(() => {
+                return TTS.speak("Verifikasi gagal, silahkan coba lagi", () => {
+                    STATIC.toast("Timeout verifikasi QR", "error")
+                    this.isVerify = false;
+                });
+            }, 10000); // 10 detik max proses
+
+            // 🚫 Empty/null/undefined check
+            if (!qrText || typeof qrText !== "string") return console.warn("QR kosong atau bukan string.");
+
+            // ✅ Validasi Base64 ketat (panjang kelipatan 4 dan regex)
+            const base64Regex = /^(?:[A-Za-z0-9+\/]{4})*(?:[A-Za-z0-9+\/]{2}==|[A-Za-z0-9+\/]{3}=)?$/;
+            if (!base64Regex.test(qrText)) return console.warn("QR bukan format Base64 valid.");
+            
+            // 🔐 Decode base64 → string
+            let decoded = "";
+            try { decoded = atob(qrText);}
+            catch (err) {return console.error("Gagal decode Base64.");
+
+            // 🧠 Parse JSON
+            let qrData = null;
+            try {qrData = JSON.parse(decoded);}
+            catch (err) {
+                this.falseCount ++
+                throw new Error("QR bukan JSON valid.");
+            }
+            
+            // 📋 Validasi struktur QR
+            if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") {
+                this.falseCount ++
+                throw new Error("QR tidak memiliki otorisasi atau auth salah.");
+            }
+            if (!qrData.code) {
+                this.falseCount ++
+                throw new Error('Code tidak ditemukan atau invalid')
+            }
+            
+            const success = this.requestData(qrData.code)
+            clearTimeout(timeout);
+            this.stop(); // stop QRScanner
+            return console.log("QR Bendhard16")
+
+        } catch (err) {
+            console.error("❌ Error verifikasi QR:", err.message);
+            STATIC.toast(err.message || "QR tidak valid", "error");
+            this.falseCount ++
+        } finally {
+            /*
+            if(this.falseCount === 15) return TTS.speak("QR Code diblokir. Hubungi admin untuk konfirmasi lebih lanjut.",
+                () => {
+                    this._blockedQR(qrText)
+                    this.resume()
+                    this.isVerify = false;
+                    STATIC.verifyController()
+                }
+            ) */
+            if(this.falseCount % 5 === 0) return TTS.speak("QR Code gagal di verifikasi. Posisikan dengan benar, pastikan dapat terlihat dengan jelas di Kamera. jang terlalu jau dan jangan terlalu dekat. Bersihakan kartu QR Code pastikan tidak ada noda. Jika sudah silahkan coba lagi.",
+                "",
+                () => {
+                    this.isVerify = false;
+                    this.resume()
+                })
+            this.isVerify = false;
+            this.resume()
+            this._startCountdown()
+        }
+    }
+
+    _blockedQR(qrtext) {
+        const blockedData = JSON.parse(localStorage.getItem("bnd-blc") || "[]");
+        if (blockedData.includes(qrtext)) return console.warn("QR Code sudah diblokir sebelumnya:", qrtext);
+        blockedData.push(qrtext)
+        localStorage.setItem("bnd-blc", JSON.stringify(blockedData))
+        //return true
+    }
+
+    _startCountdown() {
+        this._updateCountdownDisplay();
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+
+        this.countdownInterval = setInterval(() => {
+            this.timeoutCounter--;
+            this._updateCountdownDisplay();
+
+            if (this.timeoutCounter <= 0) {
+                clearInterval(this.countdownInterval);
+                this.stop();
+                STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning");
+                TTS.speak(
+                    "Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang",
+                    () => {
+                        TTS.speak("Waktu tunggu habis. Tekan tombol QR Code untuk memulai ulang")
+                        STATIC.toast("Waktu tunggu habis - tekan <i class='fas fa-qrcode'></i>", "warning")
+                    }
+                )
+            }
+        }, 1000);
+    }
+
+    _clearCountdown() {
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
+        if (this.counterEl) this.counterEl.innerText = "";
+    }
+
+    _updateCountdownDisplay() {
+        if (this.counterEl) this.counterEl.innerText = `${this.timeoutCounter}s`;
+    }
+
+    _showElement(el) {
+        if (!el) return;
+        el.classList.remove("hidden", "dis-none");
+    }
+
+    _hideElement(el) {
+        if (!el) return;
+        el.classList.add("dis-none");
+    }
+}
+
 class FaceRecognizer {
     constructor (onSuccess  = "", onFailure = "") {
         this.videoElement   = document.querySelector("#face-video");
@@ -512,8 +522,9 @@ class FaceRecognizer {
         this.captureBtn     = document.querySelector("#capture-face");
         this.targetImage    = document.querySelector("#compare-photo");
         this.unmatchedBox   = document.querySelector("#unmatched-box");
-        this.onSuccess      = onSuccess;
-        this.onFailure      = onFailure;
+        this.matchedBox     = document.querySelector("#matched-box");
+        this.success        = onSuccess;
+        this.failed         = onFailure;
     }
 
     async start() {
@@ -576,10 +587,10 @@ class FaceRecognizer {
             //return
             if(this.readyState()) {
                 this.captureBtn.classList.remove('dis-none');
+                this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
+                STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
                 TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
-                    STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
                     TTS.speak("Tekan tombol untuk mengambil gambar.")
-                    this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
                 })
             } else {
                 if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
@@ -747,7 +758,8 @@ class FaceRecognizer {
             // Tampilkan preview
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", () => {
+            STATIC.toast("Sedang verifikasi wajah...", "info");
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", () => {
                 return this.verifyFace(imageData);
             });
         } catch (error) {
@@ -828,18 +840,22 @@ class FaceRecognizer {
                 this._log("Distance antara wajah: " + distance);
 
                 if (distance >= 0.75) return TTS.speak("Verifikasi wajah berhasil", () => {
-                    STATIC.toast("Wajah cocok ✅", "success");
-                    if (typeof this.onSuccess === "function") this.onSuccess();
+                    //STATIC.toast("Wajah cocok ✅", "success");
+                    this.matchedBox.classList.remove("dis-none");
+                    this.stop();
+                    this.previewBox.classList.add("dis-none");
+                    this.captureBtn.classList.add('dis-none');
+                    setTimeout(() => this.success(), 5000)
                 });
                 else return this.verifyRetry ++ <= 1 && TTS.speak("Wajah tidak cocok, silahkan coba lagi. Maksimal 3 kali", () => {
-                    STATIC.toast("Wajah tidak cocok", "error");
                     this.unmatchedBox.classList.remove("dis-none");
                     this.previewBox.classList.add("dis-none");
-                    this.captureBtn.classList.remove('dis-none');
                     this.verifyRetry ++
-                    setTimeout(() => this.unmatchedBox.classList.add("dis-none"), 3000);
+                    setTimeout(() => {
+                        this.captureBtn.classList.remove('dis-none');
+                        this.unmatchedBox.classList.add("dis-none")
+                    }, 5000);
                 });
-                
             }).catch(err => this.verifyRetry ++ <= 1 && TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
                     this.previewBox.classList.add("dis-none");
                     console.error("[FaceRecognizer] Gagal deteksi wajah:", err);
@@ -898,13 +914,6 @@ class FaceRecognizer {
     _log(msg) {console.log("[FaceRecognizer]", msg);}
     
 }
-
-
-
-
-
-
-
 
 
 
