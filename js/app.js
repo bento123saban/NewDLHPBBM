@@ -8,25 +8,51 @@ class AppController {
     }
     
     async _init () {
-        const self = this
-        await this.connect.start()
-        let initCounter = 0
-        const interval = setInterval(() => {
-            if (JSON.parse(localStorage.getItem('connection')) != 2) initCounter ++
-            if (initCounter <= 3) return
-            clearInterval(interval)
-            STATIC.changeContent('home')
-            STATIC.loaderStop('Connected ✅')
-            setTimeout(() => this.connect.stop(), 3500)
-            let ttsUnlocked = false;
-            document.querySelector("#start").onclick = () => {
-                console.log("Start button clicked");
-                if (ttsUnlocked) return self.start()
-                const dummy = new SpeechSynthesisUtterance(" ");
-                window.speechSynthesis.speak(dummy);
-                ttsUnlocked = true;
-            }
-        }, 500)
+        try {
+            STATIC.loaderRun("Starting...");
+            const videos = document.querySelectorAll("video");
+            videos.forEach(video => {
+                const stream = video.srcObject;
+                if (stream && stream.getTracks) {
+                    stream.getTracks().forEach(track => {
+                        if (track.readyState === "live") track.stop();
+                    });
+                    video.srcObject = null;
+                }
+            });
+
+            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            await this.connect.start()
+            await this.qrScanner._init()
+
+            const self = this
+            return 
+            let initCounter = 0
+            const interval = setInterval(() => {
+                console.log("interval")
+                if (JSON.parse(localStorage.getItem('connection')) == true) initCounter ++
+                if (initCounter <= 3) return
+                clearInterval(interval)
+
+                STATIC.changeContent('home')
+                STATIC.loaderStop('Connected ✅')
+
+                setTimeout(() => this.connect.pause(), 3500)
+
+                let ttsUnlocked = false;
+                document.querySelector("#start").onclick = () => {
+                    console.log("Start button clicked");
+                    if (ttsUnlocked) return self.start()
+                    const dummy = new SpeechSynthesisUtterance(" ");
+                    window.speechSynthesis.speak(dummy);
+                    ttsUnlocked = true;
+                }
+            }, 500)
+        } catch (err) {
+            console.error("Error in AppController init:", err);
+            STATIC.toast("Gagal memulai aplikasi: " + err.message, "error");
+        }
     }
 
     async start() {
@@ -67,9 +93,13 @@ class connection {
         this.url        = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
         this.isRunning  = false;
         this.standart   = 2500;
+
         this.pingText   = document.querySelector('#ping-text')
         this.pingLoader = document.querySelector('.ping-text')
-        this.pingCycle  = 3,
+        this.pingCount  = document.querySelector('#ping-counter')
+
+        this.pingCycle  = 5
+        this.maxCycle   = 5
         this.checker    = []
         
         this.state      = navigator.onLine;
@@ -80,6 +110,7 @@ class connection {
 
     async start() {
         if (this.isRunning) return;
+        STATIC.loaderRun("Connecting...");
         this.isRunning = true;
         console.log("[PingSimple] Ping started.");
         this.pingText.classList.remove('dis-none')
@@ -101,53 +132,54 @@ class connection {
     async loop() {
         while (this.isRunning) {
             this.pingCycle --
+
             let latency = 0,
-                status  = null,
-                timeout = null
-            const start = performance.now();
+                status  = null
+
+            const start = performance.now(),
+                intv    = setInterval(() => {
+                    const ltx = Math.round(performance.now() - start);
+                    this.pingText.textContent  = ltx.toLocaleString() + " ms"
+                    this.pingText.style.color  = ltx < this.standart ? 'limegreen' : 'red';
+                }, 500)
             try {
-                timeout     = setTimeout(() => {throw new Error('ReqTimeOut : 3.3s')}, 3300)
-                const res   = await fetch(this.url, {cache: "no-store"}),
-                    end     = performance.now()
-                latency     = Math.round(end - start);
+                const res   = await fetch(this.url, {cache: "no-store"})
+                latency     = Math.round(performance.now() - start);
                 if (!res.ok) throw new Error("HTTP " + res.status);
-                clearTimeout(timeout)
-                return status = (latency < this.standart) ? 'good' : 'bad'
+                status = (latency < this.standart) ? 'good' : 'bad'
             } catch (err) {
                 console.warn('Error : ' + err)
-                const end   = performance.now(),
-                    latency = Math.round(end - start);
+                latency     = Math.round(performance.now() - start);
                 status      = 'failed'
-            } finally {
-                this.checker.push(status)
-                this.pingText.textContent   = status == 'failed' ? 'Failed' : latency + 'ms';
-                this.pingText.style.color   = status == 'good' ? 'limegreen' : 'red';
-                this.pingLoader.textContent = status == 'failed' ? 'Failed' : latency + 'ms';
-                this.pingLoader.style.color = status == 'good' ? 'limegreen' : 'red'
-                
-                if (STATIC.count(this.checker, 'failed') >= 1) return this.controller(0)
-                
-                if (this.pingCycle == 0) return
-                if (STATIC.count(this.checker, 'bad') == 3) this.controller(1)
-                else if (STATIC.count(this.checker, 'good') >= 3) this.controller(2)
+            }
+            this.checker.push(status)
+            latency = latency.toLocaleString() + " ms"
+            this.pingText.textContent   = status == 'failed' ? 'Failed' : latency;
+            this.pingText.style.color   = status == 'good' ? 'limegreen' : 'red';
+            this.pingLoader.textContent = status == 'failed' ? 'Failed' : latency;
+            this.pingLoader.style.color = status == 'good' ? 'limegreen' : 'red'
+            clearInterval(intv)            
+            this.controller(this.checker)
+            if(this.pingCycle == 0) {
+                this.pingCycle = this.maxCycle
+                this.checker = []
             }
         }
     }
     
-    controller(param = 2) {
-        this.state = param
-        if (param == 1) {
-            if (this.state) return
-            this.connecting.classList.remove('dis-none')
-        } else if (param == 0) {
-            if (this.state) return
+    controller(array) {
+        if(STATIC.count(array, 'failed') >= 1 && this.state) {
             this.connecting.classList.add('dis-none')
             this.networkBox.classList.remove('dis-none')
+            this.state = false
+        } else if (STATIC.count(array, 'bad') >= 3 && !this.state) {
+            this.connecting.classList.remove('dis-none')
         } else {
+            this.state = true
             this.connecting.classList.add('dis-none')
             this.networkBox.classList.add('dis-none')
         }
-        localStorage.setItem('connection', JSON.stringify(param))
+        localStorage.setItem('connection', JSON.stringify(this.state))
     }
 }
 
@@ -215,7 +247,7 @@ class STATIC {
             console.error("[loaderRun] Gagal menampilkan loader :", err);
         }
     }
-    static loaderStop(text = '', delay = 3000) {
+    static loaderStop(text = '', delay = 3000) {4
         document.querySelector('#loader-text').textContent = text
         if (text === '') return document.querySelector("#loader").classList.add('dis-none')
         document.querySelector("#the-loader").classList.add("dis-none");
@@ -226,7 +258,6 @@ class STATIC {
         return arr.filter(v => v == val).length
     }
 }
-
 
 class TTS {
     static unlocked = false;
@@ -341,27 +372,46 @@ class QRScanner {
         this.countdownInterval  = null;
         this.timeoutCounter     = this.counter;
 
-        this.isScanning         = false;
-        this.isRunning          = false;
-        this.isPaused           = false;
-        this.hasStarted         = false;
-        this.isVerify           = false;
-
         this.regionEl           = document.getElementById("qr-reader");
         this.restartBtn         = document.getElementById("restart-scan-btn");
         this.counterEl          = document.getElementById("cams-timeout-counter");
         this.scanGuide          = document.querySelector(".scan-guide-line");
-
-        this._bindUI();
     }
 
-    _bindUI() {
-        if (this.restartBtn) this.restartBtn.onclick = () => this.start();
+    async _init() {
+        let error = "";
+        try {
+            STATIC.loaderRun("QR Scanner _init()");
+            if (typeof Html5Qrcode === "undefined") throw new Error("Library QR belum dimuat : html5qrcode-not-found", "error")
+            this.qrCodeScanner = new Html5Qrcode("qr-reader", {
+                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+            });
+            if (!this.regionEl || !this.restartBtn || !this.counterEl || !this.scanGuide) throw new Error("Elemen tidak ditemukan. Pastikan semua elemen ada di halaman.");
+            
+            this._hideElement(this.regionEl);
+            this._hideElement(this.restartBtn);
+            this._hideElement(this.scanGuide);
+            this._clearCountdown();
+
+            this.isScanning = false;
+            this.isRunning  = false;
+            this.isPaused   = false;
+            this.hasStarted = false;
+            this.isVerify   = false;
+            
+            if (this.restartBtn) this.restartBtn.onclick = () => this.start();
+        
+            return true
+        } catch (err) {
+            error = "QRScanner init error: " + err.message;
+            param = false
+        }
+        if(error != "") throw new Error(error, "error");
     }
 
     async start() {
+
         if (this.isScanning || this.isRunning || this.isVerify) return;
-        if (typeof Html5Qrcode === "undefined") return STATIC.toast("Library QR belum dimuat : html5qrcode-not-found", "error")
         
         TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
         
@@ -374,10 +424,6 @@ class QRScanner {
         this.timeoutCounter = this.counter; // Reset timeout counter
 
         try {
-            this.qrCodeScanner = new Html5Qrcode("qr-reader", {
-                formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
-            });
-
             const devices = await Html5Qrcode.getCameras();
             const camId = devices.find(d => d.label.toLowerCase().includes("front"))?.id || devices[0]?.id;
             if (!camId) throw new Error("Tidak ada kamera ditemukan.");
