@@ -1,13 +1,15 @@
 
 class AppController {
     constructor() {
-        this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
-        this.face       = new FaceRecognizer(this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
+        this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
+        this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
         this.startAll   = false;
-        this.connect    = new connection();
+        this.connect    = new connection(this);
+        this.isStarting = true
     }
     
     async _init () {
+        this.isStarting = true
         try {
             STATIC.loaderRun("Starting...");
             const videos = document.querySelectorAll("video");
@@ -22,36 +24,36 @@ class AppController {
             });
 
             await new Promise(resolve => setTimeout(resolve, 1000));
-
-            await this.connect.start()
             await this.qrScanner._init()
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.face._init()
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.connect.start()
 
-            const self = this
-            return 
-            let initCounter = 0
-            const interval = setInterval(() => {
-                console.log("interval")
-                if (JSON.parse(localStorage.getItem('connection')) == true) initCounter ++
-                if (initCounter <= 3) return
-                clearInterval(interval)
 
-                STATIC.changeContent('home')
-                STATIC.loaderStop('Connected ✅')
 
-                setTimeout(() => this.connect.pause(), 3500)
+            setTimeout(() => {
+                if(this.connect.isOnLine()) STATIC.loaderStop('Load setup complete ✅')
+                else STATIC.loaderStop('Bed connection')
+                this.connect.pause()
+                this.isStarting = false
+                document.querySelector("#home").classList.remove("dis-none")
+            }, 2000)
 
-                let ttsUnlocked = false;
-                document.querySelector("#start").onclick = () => {
-                    console.log("Start button clicked");
-                    if (ttsUnlocked) return self.start()
-                    const dummy = new SpeechSynthesisUtterance(" ");
-                    window.speechSynthesis.speak(dummy);
-                    ttsUnlocked = true;
-                }
-            }, 500)
+                
+            let ttsUnlocked = false;
+                self = this
+            document.querySelector("#start").onclick = () => {
+                console.log("Start button clicked");
+                if (ttsUnlocked) return self.start()
+                const dummy = new SpeechSynthesisUtterance(" ");
+                window.speechSynthesis.speak(dummy);
+                ttsUnlocked = true;
+            }
         } catch (err) {
             console.error("Error in AppController init:", err);
             STATIC.toast("Gagal memulai aplikasi: " + err.message, "error");
+            this.isStarting = false
         }
     }
 
@@ -88,11 +90,12 @@ class AppController {
 }
 
 class connection {
-    constructor() {
+    constructor(main) {
+        this.appCTRL    = main
         this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
         this.url        = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
         this.isRunning  = false;
-        this.standart   = 2500;
+        this.standart   = 5000;
 
         this.pingText   = document.querySelector('#ping-text')
         this.pingLoader = document.querySelector('.ping-text')
@@ -114,7 +117,7 @@ class connection {
         this.isRunning = true;
         console.log("[PingSimple] Ping started.");
         this.pingText.classList.remove('dis-none')
-        await this.loop();
+        this.loop();
     }
     
     pause () {
@@ -139,7 +142,7 @@ class connection {
             const start = performance.now(),
                 intv    = setInterval(() => {
                     const ltx = Math.round(performance.now() - start);
-                    this.pingText.textContent  = ltx.toLocaleString() + " ms"
+                    this.pingText.textContent  = ltx.toLocaleString() + " ms";
                     this.pingText.style.color  = ltx < this.standart ? 'limegreen' : 'red';
                 }, 500)
             try {
@@ -154,10 +157,8 @@ class connection {
             }
             this.checker.push(status)
             latency = latency.toLocaleString() + " ms"
-            this.pingText.textContent   = status == 'failed' ? 'Failed' : latency;
+            this.pingText.textContent   = status == 'failed' ? 'Request timeout' : latency;
             this.pingText.style.color   = status == 'good' ? 'limegreen' : 'red';
-            this.pingLoader.textContent = status == 'failed' ? 'Failed' : latency;
-            this.pingLoader.style.color = status == 'good' ? 'limegreen' : 'red'
             clearInterval(intv)            
             this.controller(this.checker)
             if(this.pingCycle == 0) {
@@ -168,18 +169,14 @@ class connection {
     }
     
     controller(array) {
-        if(STATIC.count(array, 'failed') >= 1 && this.state) {
-            this.connecting.classList.add('dis-none')
-            this.networkBox.classList.remove('dis-none')
-            this.state = false
-        } else if (STATIC.count(array, 'bad') >= 3 && !this.state) {
-            this.connecting.classList.remove('dis-none')
-        } else {
-            this.state = true
-            this.connecting.classList.add('dis-none')
-            this.networkBox.classList.add('dis-none')
-        }
+        if(STATIC.count(array, 'failed') >= 1) this.state = false
+        else if (STATIC.count(array, 'bad') >= 3 && !this.state) this.connecting.classList.remove('dis-none')
+        else this.state = true
         localStorage.setItem('connection', JSON.stringify(this.state))
+    }
+
+    isOnLine() {
+        return JSON.parse(localStorage.getItem("connection"))
     }
 }
 
@@ -247,7 +244,7 @@ class STATIC {
             console.error("[loaderRun] Gagal menampilkan loader :", err);
         }
     }
-    static loaderStop(text = '', delay = 3000) {4
+    static loaderStop(text = '', delay = 3000) {
         document.querySelector('#loader-text').textContent = text
         if (text === '') return document.querySelector("#loader").classList.add('dis-none')
         document.querySelector("#the-loader").classList.add("dis-none");
@@ -291,77 +288,67 @@ class TTS {
 }
 
 class RequestManager {
-    constructor() {
-        this.maxRetries = 5;
-        this.retryDelay = 1000
-        this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+    constructor(main) {
+        this.appCTRL     = main;
+        this.maxRetries  = 5;
+        this.retryDelay  = 1000; // ms
+        this.apiURL      = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
+        this.baseURL     = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
     }
-    
-    static async getDriver(code) {
-        const url = this.baseURL
-        if (!navigator.onLine) return
+
+    _log(msg) {
+        console.log("[RequestManager]", msg);
+    }
+
+    isOnline() {
+        return this.appCTRL.connect?.isOnLine?.();
     }
 
     async post(data = {}) {
-        if (!navigator.onLine) {
-            this._log("🔌 Offline: Tidak bisa kirim request.");
-            this._showToast("Tidak ada koneksi internet. Coba lagi nanti.");
-            return { success: false, error: "offline" };
+        if (!this.isOnline()) {
         }
 
         let attempt = 0;
         while (attempt < this.maxRetries) {
             try {
-                const response  = await fetch(this.baseURL, {
+                const response = await fetch(this.baseURL, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify(data),
-                }),
-                    result      = await response.json();
+                });
+
+                const result = await response.json();
+
                 if (response.ok) {
-                    this._log(`✅ POST sukses [${url}]`, result);
+                    this._log(`✅ POST sukses`, result);
                     return { success: true, data: result };
                 } else {
-                    this._log(`❌ Gagal (Status ${response.status})`, result);
+                    this._log(`❌ Gagal (status ${response.status})`, result);
                     return { success: false, error: result };
                 }
+
             } catch (err) {
                 attempt++;
-                this._log(`⚠️ POST error (Attempt ${attempt}/${this.maxRetries})`, err);
+                this._log(`⚠️ POST error attempt ${attempt}`, err);
+
                 if (attempt >= this.maxRetries) {
-                this._showToast("Request gagal setelah beberapa kali mencoba.");
-                return { success: false, error: err.message || err };
+                    this._showToast("Gagal mengirim data ke server.", "error");
+                    return { success: false, error: err.message || err };
                 }
+
                 await this._delay(this.retryDelay);
             }
         }
     }
-
-    // Delay helper
-    _delay(ms) {
-        return new Promise((resolve) => setTimeout(resolve, ms));
-    }
-
-    // Log helper (nanti bisa dikirim ke panel debug log juga)
-    _log(...args) {
-        if (window.DEBUG_MODE) console.log("[RequestManager]", ...args);
-    }
-
-    // Toast helper (bisa integrasi ke ToastManager nanti)
-    _showToast(message) {
-        if (typeof ToastManager !== "undefined") {
-        ToastManager.show(message, "error");
-        } else {
-        console.warn("ToastManager tidak tersedia:", message);
-        }
-    }
 }
 
+
 class QRScanner {
-    constructor(onSuccess, onFailed) {
+    constructor(main, onSuccess, onFailed) {
+
+        this.appCTRL            = main
         this.onSuccess          = onSuccess;
         this.onFailed           = onFailed;
         this.falseCount         = 0;
@@ -380,8 +367,8 @@ class QRScanner {
 
     async _init() {
         let error = "";
+        STATIC.loaderRun("Load Scanner...");
         try {
-            STATIC.loaderRun("QR Scanner _init()");
             if (typeof Html5Qrcode === "undefined") throw new Error("Library QR belum dimuat : html5qrcode-not-found", "error")
             this.qrCodeScanner = new Html5Qrcode("qr-reader", {
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
@@ -655,9 +642,7 @@ class FaceRecognizer {
         this.matchedBox     = document.querySelector("#matched-box");
         this.success        = onSuccess;
         this.failed         = onFailure;
-    }
 
-    async start() {
         this.targetEmbedd   = null;
         this.targetReady    = false;
         this.human          = null;
@@ -669,14 +654,12 @@ class FaceRecognizer {
         this.setupRetry     = 0;
         this.verifyRetry    = 0;
         this.captureRetry   = 0
-
-        await this._init();
     }
 
     async _init() {
-
+        STATIC.loaderRun("Load Human JS...")
+        let error = ""
         try {
-
             const HumanLib = window.Human?.Human || window.Human;
             if (!HumanLib) throw new Error("Human.js belum dimuat");
             
@@ -699,44 +682,44 @@ class FaceRecognizer {
                 },
             });
 
-            this.captureBtn.classList.add('dis-none');
-            this.captureBtn.onclick = () => {};
-
             try {
                 await this.human.load();
                 this.modelLoaded = true;
             } catch (err) {
                 this.modelLoaded = false;
-                console.error("[Human] : " + err)
+                throw new Error("[Human init]", err)
             }
 
             await this.human.warmup();
             this.humanReady = true
-            await this.loadTargetEmbedd()
-            await this._setupCamera();
-            //return
-            if(this.readyState()) {
-                this.captureBtn.classList.remove('dis-none');
-                this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
-                STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
-                TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
-                    TTS.speak("Tekan tombol untuk mengambil gambar.")
-                })
-            } else {
-                if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
-                    status : "init failed",
-                    text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
-                });
-                setTimeout(() => this._init(), 1000)
-                return this.setupRetry ++
-            }
-
+            return true
         } catch (err) {
             this._log("Init error: " + err.message);
-            return typeof this.onFailure === "function" && this.onFailure({
+            error = "[Human] Init : Error " + err.message
+        }
+        if(error.length >= 5) throw new Error(err)
+    }
+
+    async start() {
+        this.captureBtn.classList.add('dis-none');
+        this.captureBtn.onclick = () => {};
+        await this.loadTargetEmbedd()
+        await this._setupCamera();
+        //return
+        if(this.readyState()) {
+            this.captureBtn.classList.remove('dis-none');
+            this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
+            STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
+            TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
+                TTS.speak("Tekan tombol untuk mengambil gambar.")
+            })
+        } else {
+            if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
                 status : "init failed",
-                text   : "Error inisiasi Face Verify."
+                text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
             });
+            setTimeout(() => this._init(), 1000)
+            return this.setupRetry ++
         }
     }
 
