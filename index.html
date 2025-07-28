@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="./font/fontawsome/css/all.css">
 </head>
 <body>
+    
+    <span id="ping-text" class="dis-none"></span>
 
     <img src="./img/driver.jpeg" class="dis-none" id="face-basic" alt="">
     
@@ -37,7 +39,7 @@
         </div>
     </div>
 
-    <div class="content flex-center justify-center flex-column gap-15 vh-100 p-30 clr-white" id="home">
+    <div class="content flex-center justify-center flex-column gap-15 vh-100 p-30 clr-white dis-none" id="home">
         <h1 class="m-0 p-0 uppercase">Kontrol BBM</h1>
         <h4 class="m-0 p-0">DLHP Kota Ambon</h4>
         <p class="m-0 p-0 home-text ph-10 align-justify fz-14">Lorem ipsum dolor sit amet consectetur adipisicing elit. Nihil, nulla? Minus, vero nihil eos facere illum magnam odio quas quasi, vel expedita sint ut voluptatum laudantium labore aut quaerat iste.</p>
@@ -156,12 +158,13 @@
         </div>
     </div>
 
-    <div class="content dis-none" id="loader">
+    <div class="content" id="loader">
         <div class="loaderx grid-center">
-            <div class="loader-content relative clr-default">
-                <div class="loader"></div>
-                <div class="align-center fz-8 ping-text p-3"></div>
-                <div class="align-center loader-text fz-14" id="loader-text">Request Data</div>
+            <div class="loader-content relative clr-black br-black">
+                <div class="loader" id="the-loader"></div>
+                <div id="loader-icon" class="dis-none"><i class="align-center fas fa-check fz-40 clr-green"></i></div>
+                <div class="align-center fz-8 ping-text p-3 pt-2">...</div>
+                <div class="align-center loader-text fz-14" id="loader-text">Connecting...</div>
             </div>
         </div>
     </div>
@@ -169,7 +172,7 @@
     <div class="grid-center clr-black vw-100 vh-100 dis-none" id="network">
         <div class="align-center" id="offline">
             <i class="fas fa-wifi fz-40 relative network-icon" id="offline-icon"></i><br><span>OFFLINE</span>
-            <div class="offline- fz-8 mt-2">
+            <div class="offline- fz-8 mt-2 dis-none" id="connecting">
                 <i class="fas fa-circle-notch fa-spin"></i><br>
                 Menghubungkan ke jaringan...
             </div>

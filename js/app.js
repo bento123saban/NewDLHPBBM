@@ -1,55 +1,44 @@
 
-
 class AppController {
     constructor() {
-        this.connection = true
         this.qrScanner  = new QRScanner(this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
         this.startAll   = false;
+        this.connect    = new connection();
+    }
+    
+    async _init () {
+        const self = this
+        await this.connect.start()
+        let initCounter = 0
+        const interval = setInterval(() => {
+            if (JSON.parse(localStorage.getItem('connection')) != 2) initCounter ++
+            if (initCounter <= 3) return
+            clearInterval(interval)
+            STATIC.changeContent('home')
+            STATIC.loaderStop('Connected ✅')
+            setTimeout(() => this.connect.stop(), 3500)
+            let ttsUnlocked = false;
+            document.querySelector("#start").onclick = () => {
+                console.log("Start button clicked");
+                if (ttsUnlocked) return self.start()
+                const dummy = new SpeechSynthesisUtterance(" ");
+                window.speechSynthesis.speak(dummy);
+                ttsUnlocked = true;
+            }
+        }, 500)
     }
 
-    _bindElement () {
-    }
-
-    start() {
-        if(!navigator.onLine) return STATIC._connection(false)
-        if(navigator.onLine) this.connection = true
+    async start() {
         this.startAll = true
         STATIC.changeContent("scan");
         this.qrScanner.start();
-        
-        window.addEventListener('offline', () => {
-            if (this.reqManage.online = true) STATIC._connection(false)
-            //this.reqManage.online = false
-        })
-        window.addEventListener('online', async () => {
-            if(this.startAll == false) return this.start()
-            const online = async () => {
-                try {
-                    // Ping ke Google favicon atau endpoint server kamu
-                    const response = await fetch("https://www.google.com/favicon.ico", {
-                        method  : "HEAD",
-                        mode    : "no-cors",
-                        cache   : "no-store"
-                    });
-                    // Kalau berhasil sampai sini, artinya request bisa jalan
-                    return true;
-                } catch (error) {
-                    // Kalau error (gagal koneksi), berarti offline
-                    return false;
-                }
-            }
-            if (await online()) {
-                if (this.reqManage.online = false) STATIC._connection(true)
-                this.reqManage.online = true
-            }
-            else this.reqManage.online = false
-        })
     }
 
     stop() {
         this.qrScanner.stop();
         this.face.stop()
+        this.connect.pause()
     }
 
     _handleFaceSuccess() {
@@ -70,6 +59,96 @@ class AppController {
         TTS.speak(data.speak, "", setTimeout(() => verify.clear(), 2500))
     }
     
+}
+
+class connection {
+    constructor() {
+        this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
+        this.url        = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+        this.isRunning  = false;
+        this.standart   = 2500;
+        this.pingText   = document.querySelector('#ping-text')
+        this.pingLoader = document.querySelector('.ping-text')
+        this.pingCycle  = 3,
+        this.checker    = []
+        
+        this.state      = navigator.onLine;
+        
+        this.networkBox = document.querySelector('#network')
+        this.connecting = document.querySelector('#connecting')
+    }
+
+    async start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        console.log("[PingSimple] Ping started.");
+        this.pingText.classList.remove('dis-none')
+        await this.loop();
+    }
+    
+    pause () {
+        this.isRunning = false;
+        this.pingText.classList.add('dis-none')
+        console.log("[PingSimple] Ping paused.");
+    }
+
+    resume() {
+        this.isRunning = true;
+        this.pingText.classList.remove('dis-none')
+        console.log("[PingSimple] Ping resumed.");
+    }
+
+    async loop() {
+        while (this.isRunning) {
+            this.pingCycle --
+            let latency = 0,
+                status  = null,
+                timeout = null
+            const start = performance.now();
+            try {
+                timeout     = setTimeout(() => {throw new Error('ReqTimeOut : 3.3s')}, 3300)
+                const res   = await fetch(this.url, {cache: "no-store"}),
+                    end     = performance.now()
+                latency     = Math.round(end - start);
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                clearTimeout(timeout)
+                return status = (latency < this.standart) ? 'good' : 'bad'
+            } catch (err) {
+                console.warn('Error : ' + err)
+                const end   = performance.now(),
+                    latency = Math.round(end - start);
+                status      = 'failed'
+            } finally {
+                this.checker.push(status)
+                this.pingText.textContent   = status == 'failed' ? 'Failed' : latency + 'ms';
+                this.pingText.style.color   = status == 'good' ? 'limegreen' : 'red';
+                this.pingLoader.textContent = status == 'failed' ? 'Failed' : latency + 'ms';
+                this.pingLoader.style.color = status == 'good' ? 'limegreen' : 'red'
+                
+                if (STATIC.count(this.checker, 'failed') >= 1) return this.controller(0)
+                
+                if (this.pingCycle == 0) return
+                if (STATIC.count(this.checker, 'bad') == 3) this.controller(1)
+                else if (STATIC.count(this.checker, 'good') >= 3) this.controller(2)
+            }
+        }
+    }
+    
+    controller(param = 2) {
+        this.state = param
+        if (param == 1) {
+            if (this.state) return
+            this.connecting.classList.remove('dis-none')
+        } else if (param == 0) {
+            if (this.state) return
+            this.connecting.classList.add('dis-none')
+            this.networkBox.classList.remove('dis-none')
+        } else {
+            this.connecting.classList.add('dis-none')
+            this.networkBox.classList.add('dis-none')
+        }
+        localStorage.setItem('connection', JSON.stringify(param))
+    }
 }
 
 class STATIC {
@@ -125,24 +204,29 @@ class STATIC {
     static delay (ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
-    static _connection(state = true) {
-        document.querySelector('#network')?.classList.toggle('dis-none', state);
-    }
-    static loader(speak = '', text = 'Sending Request') {
-        return {
-            run : () => {
-                TTS.speak(speak)
-                document.querySelector("#loader").classList.remove('dis-none')
-                document.querySelector('#loader-text').textContent = text
-            },
-            stop : () => {
-                document.querySelector("#loader").classList.add('dis-none')
-                document.querySelector('#loader-text').textContent = ''
-                TTS.stop()
-            }
+    static loaderRun(text = 'Sending Request', speak = false) {
+        try {
+            if (typeof speak === 'string') TTS.speak(speak);
+            document.querySelector("#loader").classList.remove("dis-none");
+            document.querySelector("#the-loader").classList.remove("dis-none");
+            document.querySelector("#loader-icon").classList.add("dis-none");
+            document.querySelector("#loader-text").textContent = text;
+        } catch (err) {
+            console.error("[loaderRun] Gagal menampilkan loader :", err);
         }
     }
+    static loaderStop(text = '', delay = 3000) {
+        document.querySelector('#loader-text').textContent = text
+        if (text === '') return document.querySelector("#loader").classList.add('dis-none')
+        document.querySelector("#the-loader").classList.add("dis-none");
+        document.querySelector("#loader-icon").classList.remove("dis-none");
+        setTimeout(() => document.querySelector("#loader").classList.add('off'), delay)
+    }
+    static count (arr, val) {
+        return arr.filter(v => v == val).length
+    }
 }
+
 
 class TTS {
     static unlocked = false;
@@ -917,10 +1001,9 @@ class FaceRecognizer {
 
 
 
-
-
-
-window.addEventListener("DOMContentLoaded", () => { 
+window.addEventListener("DOMContentLoaded", () => {
+    STATIC.loaderRun('Connecting...')
+    new AppController()._init()
     const videos = document.querySelectorAll("video");
     videos.forEach(video => {
         const stream = video.srcObject;
@@ -931,22 +1014,10 @@ window.addEventListener("DOMContentLoaded", () => {
             video.srcObject = null;
         }
     });
-    
-    let ttsUnlocked = false;
     console.log(btoa(JSON.stringify({
         auth : "Bendhard16",
         code : btoa("A-001")
     })))
-    document.querySelector("#start").onclick = () => {
-        console.log("Start button clicked");
-        if (!ttsUnlocked) {
-            const dummy = new SpeechSynthesisUtterance(" ");
-            window.speechSynthesis.speak(dummy);
-            ttsUnlocked = true;
-            return console.log("TTS unlocked");
-        }
-        const qrScanner = new AppController().start();
-    }
     console.log(JSON.parse(atob("eyJhdXRoIjoiQmVuZGhhcmQxNiIsImNvZGUiOiJRUzB3TURFPSJ9")))
 });
 
