@@ -1,13 +1,14 @@
 
+
 class AppController {
     constructor() {
         this.connect    = new connection(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
-        this.DB         = new IndexedDBController();
+        this.DB         = new IndexedDBController(this);
         this.isStarting = true
         this.startAll   = false;
-        
+        this.DATA       = null
     }
     
     async _init () {
@@ -32,36 +33,34 @@ class AppController {
             await new Promise(resolve => setTimeout(resolve, 1000));
             await this.connect.start()
             await new Promise(resolve => setTimeout(resolve, 1000));
+            await Location.getCurrent()
+
+
+            /*
             await this.DB.init({
                 drivers : {
-                    options : {keyPath : 'ID'},
+                    options : {keyPath : 'NOLAMBUNG'},
                     indexes : [
                             { keyPath : 'NAMA',     unique : true}, // basic
-                            { keyPath : 'NOLAMBUNG',unique : true}, // basic
-                            { keyPath : 'BIDANG'} , // basic
-                            { keyPath : 'CODE'}, // basic
-                            { keyPath : 'LITER'} // basic
+                            { keyPath : 'BIDANG'} ,                 // basic
+                            { keyPath : 'CODE'},                    // basic
+                            { keyPath : 'LITER'}                    // basic
                         ]
                 },
                 trx : {
                     options : { keyPath : 'TRXID'},
                     indexes : [
-                            { keyPath : 'TRXID',    unique : true}, // basic
-                            { keyPath : 'BIDANG'}, // basic
-                            { keyPath : 'DATE'} // basic
+                            { keyPath : 'BIDANG'},                  // basic
+                            { keyPath : 'DATE'}                     // basic
                         ]
                 },
-                config : {
-                    options : { keyPath : 'TYPE'},
-                    indexes : [
-                            { keyPath : 'TYPE'}
-                        ]
-                }
+                config : {options : { keyPath : 'TYPE'}}
             });
+            */
             
             
             setTimeout(() => {
-                if(this.connect.isOnLine()) STATIC.loaderStop('Load setup complete ✅')
+                if(this.connect.isOnLine()) STATIC.loaderStop('Setup Complete')
                 else STATIC.loaderStop('Bed connection')
                 this.connect.pause()
                 this.isStarting = false
@@ -108,9 +107,21 @@ class AppController {
     }
     
     _handleQRFailed(data) {
-        const verify = STATIC.verifyController({status : data.status, text : data.text})
-        verify.show()
-        TTS.speak(data.speak, "", setTimeout(() => verify.clear(), 2500))
+        if (data.status === "denied") {
+            STATIC.verifyController({
+                status  : "denied",
+                text    : data.text || "QR Code tidak valid atau telah diblokir.",
+                speak   : data.speak || "QR Code tidak valid atau telah diblokir."
+            }).show();
+        } else if (data.status === "granted") {
+            STATIC.verifyController({
+                status  : "granted",
+                text    : data.text || "QR Code berhasil diverifikasi.",
+                speak   : data.speak || "QR Code berhasil diverifikasi."
+            }).show();
+        } else {
+            STATIC.toast(data.text || "Verifikasi QR gagal", "error");
+        }
     }
     
 }
@@ -316,7 +327,7 @@ class TTS {
 class RequestManager {
     constructor(main) {
         this.appCTRL     = main;
-        this.maxRetries  = 5;
+        this.maxRetries  = 3;
         this.retryDelay  = 1000; // ms
         this.apiURL      = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
         this.baseURL     = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
@@ -330,9 +341,10 @@ class RequestManager {
         return this.appCTRL.connect?.isOnLine?.();
     }
 
-    async post(data = {}) {
-        if (!this.isOnline()) {
-        }
+    async post(data) {
+        if (!this.isOnline()) await STATIC.delay(1000);
+        if (!this.isOnline()) await STATIC.delay(1000);
+        if (!this.isOnline()) return onError({status : "offline", text: "Tidak ada koneksi internet."});
 
         let attempt = 0;
         while (attempt < this.maxRetries) {
@@ -342,17 +354,17 @@ class RequestManager {
                     headers: {
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify(data),
+                    body: JSON.stringify(data)
                 });
 
                 const result = await response.json();
 
                 if (response.ok) {
                     this._log(`✅ POST sukses`, result);
-                    return { success: true, data: result };
+                    return {status: "success",data : result}
                 } else {
                     this._log(`❌ Gagal (status ${response.status})`, result);
-                    return { success: false, error: result };
+                    return { status: false, error: "Gagal request" }
                 }
 
             } catch (err) {
@@ -410,6 +422,7 @@ class QRScanner {
             this.isPaused   = false;
             this.hasStarted = false;
             this.isVerify   = false;
+            this.openCount  = 3;
             
             if (this.restartBtn) this.restartBtn.onclick = () => this.start();
         
@@ -422,6 +435,7 @@ class QRScanner {
     }
 
     async start() {
+        var self = this
 
         if (this.isScanning || this.isRunning || this.isVerify) return;
         
@@ -461,6 +475,20 @@ class QRScanner {
             this.isRunning = false;
             this.stop();
             console.error("QRScanner start error:", err.message);
+            const timeOut = setTimeout(() => {
+                self.openCount --
+                if (self.openCount == 0) {
+                    self.openCount = 3
+                    clearTimeout(timeOut)
+                    return self.onFailed({
+                        status  : "failed",
+                        text    : "[QRScanner] Error saat membuka kamera. " + err.message,
+                        speak   : "Gagal membuka kamera setelah 3 kali percobaan. Silahkan hubungi admin untuk bantuan lebih lanjut. "
+                    })
+                }
+                STATIC.toast("Mengulang membuka kamera.", "error");
+                self.start()
+            }, 1000)
         }
     }
 
@@ -574,9 +602,9 @@ class QRScanner {
                 throw new Error('Code tidak ditemukan atau invalid')
             }
             
-            const success = this.requestData(qrData.code)
             clearTimeout(timeout);
-            this.stop(); // stop QRScanner
+            this.pause();
+            this.requestData(qrData.code)
             return console.log("QR Bendhard16")
 
         } catch (err) {
@@ -654,10 +682,41 @@ class QRScanner {
         if (!el) return;
         el.classList.add("dis-none");
     }
+
+    requestData(code) {
+        if (!this.appCTRL || !this.appCTRL.connect) {
+            console.error("AppController atau koneksi tidak tersedia.");
+            return;
+        }
+
+        this.main.RequestManager.post({ type : "QRrequest", code: code })
+            .then(response => {
+                if (response.success) {
+                    this.onSuccess(response.data);
+                } else {
+                    this.onFailed({
+                        status: "denied",
+                        text: response.error || "Gagal memverifikasi QR Code.",
+                        speak: "Gagal memverifikasi QR Code."
+                    });
+                }
+            })
+            .catch(err => {
+                console.error("Request error:", err);
+                this.onFailed({
+                    status: "failed",
+                    text: err.message || "Terjadi kesalahan saat mengirim data.",
+                    speak: "Terjadi kesalahan saat mengirim data."
+                });
+            });
+    }
 }
 
 class FaceRecognizer {
-    constructor (onSuccess  = "", onFailure = "") {
+    constructor (main, onSuccess  = "", onFailure = "") {
+
+        this.appCTRL        = main
+
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
@@ -1054,7 +1113,8 @@ class FaceRecognizer {
 }
 
 class IndexedDBController {
-    constructor(version = 1) {
+    constructor(main, version = 1) {
+        this.appCTRL    = main
         this.dbName     = 'BBM';
         this.version    = version;
         this.db         = null;
@@ -1207,6 +1267,37 @@ class IndexedDBController {
         });
     }
 }
+
+class Location {
+    static getCurrent(success, error) {
+        if (!navigator.geolocation) {
+            error?.("Geolocation tidak didukung.");
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const { latitude, longitude, accuracy } = pos.coords;
+                success?.({ latitude, longitude, accuracy, timestamp: pos.timestamp });
+                if(!success) console.log("Lokasi berhasil diambil:", { latitude, longitude, accuracy, timestamp: pos.timestamp });
+            },
+            (err) => {
+                let msg = {
+                    1: "Akses lokasi ditolak.",
+                    2: "Lokasi tidak tersedia.",
+                    3: "Timeout mengambil lokasi."
+                }[err.code] || "Kesalahan tak dikenal.";
+                error?.(msg);
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 0
+            }
+        );
+    }
+}
+
 
 
 window.addEventListener("DOMContentLoaded", () => {
