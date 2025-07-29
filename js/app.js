@@ -1,11 +1,13 @@
 
 class AppController {
     constructor() {
+        this.connect    = new connection(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
-        this.startAll   = false;
-        this.connect    = new connection(this);
+        this.DB         = new IndexedDBController();
         this.isStarting = true
+        this.startAll   = false;
+        
     }
     
     async _init () {
@@ -29,7 +31,27 @@ class AppController {
             await this.face._init()
             await new Promise(resolve => setTimeout(resolve, 1000));
             await this.connect.start()
-
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.DBX.init({
+                drivers : {
+                    options : { keyPath : 'NOLAMBUNG'},
+                    indexes : [
+                            { name : 'namaX',   keyPath : 'NAMA'}, // basic
+                            { name : 'bidangX', keyPath : 'BIDANG'} , // basic
+                            { name : 'codeX',   keyPath : 'CODE'}, // basic
+                            { name : 'literX',  keyPath : 'LITER'}, // basic
+                            { name : 'lambungX',keyPath : 'NOLAMBUNG'}, // basic
+                        ]
+                },
+                trx : {
+                    indexes : [
+                            { name : 'idX',     keyPath : 'ID'}, // basic
+                            { name : 'bidangX', keyPath : 'BIDANG'}, // basic
+                            { name : 'dateX',   keyPath : 'DATE'} // basic
+                        ]
+                }
+            })
+    
 
 
             setTimeout(() => {
@@ -343,7 +365,6 @@ class RequestManager {
         }
     }
 }
-
 
 class QRScanner {
     constructor(main, onSuccess, onFailed) {
@@ -1028,6 +1049,164 @@ class FaceRecognizer {
     
 }
 
+class IndexedDBController {
+    constructor(version = 1) {
+        this.dbName    = BBM;
+        this.version   = version;
+        this.db        = null;
+        this.schema    = {};
+    }
+
+    async init(schema = {}) {
+        this.schema = schema;
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, this.version);
+
+            request.onerror = (e) => {
+                console.error("[IndexedDB] Gagal buka DB:", e);
+                STATIC.toast("Gagal buka database", "error");
+                reject(e);
+            };
+
+            request.onsuccess = (e) => {
+                this.db = e.target.result;
+                STATIC.toast("Database siap ✅", "success");
+                resolve(this);
+            };
+
+            request.onupgradeneeded = (e) => {
+                this.db = e.target.result;
+                for (const storeName in schema) {
+                    if (!this.db.objectStoreNames.contains(storeName)) {
+                        const def = schema[storeName];
+                        const store = this.db.createObjectStore(storeName, def.options || { keyPath: 'id' });
+                        if (def.indexes && Array.isArray(def.indexes)) {
+                            for (const idx of def.indexes) {
+                                store.createIndex(idx.name, idx.keyPath, idx.options || {});
+                            }
+                        }
+                        console.log(`[IndexedDB] Store '${storeName}' dibuat.`);
+                    }
+                }
+            };
+        });
+    }
+
+    async add(storeName, data) {
+        try {
+            const existing = await this.get(storeName, data.id);
+            if (existing) {
+                STATIC.toast("Data sudah ada", "warning");
+                return false;
+            }
+
+            return await this._run(storeName, "readwrite", store => {
+                const request = store.add(data);
+                return this._handleRequest(request, "Data ditambahkan", "Gagal menambah data");
+            });
+        } catch (err) {
+            console.error("[IndexedDB][add]", err);
+            STATIC.toast("Error saat menambah", "error");
+        }
+    }
+
+    async put(storeName, data) {
+        try {
+            return await this._run(storeName, "readwrite", store => {
+                const request = store.put(data);
+                return this._handleRequest(request, "Data disimpan", "Gagal menyimpan data");
+            });
+        } catch (err) {
+            console.error("[IndexedDB][put]", err);
+            STATIC.toast("Error saat menyimpan", "error");
+        }
+    }
+
+    async update(storeName, id, updater) {
+        try {
+            const item = await this.get(storeName, id);
+            if (!item) {
+                STATIC.toast("Data tidak ditemukan", "error");
+                return false;
+            }
+
+            const updated = updater(item);
+            return await this.put(storeName, updated);
+        } catch (err) {
+            console.error("[IndexedDB][update]", err);
+            STATIC.toast("Error saat update", "error");
+        }
+    }
+
+    async delete(storeName, key) {
+        try {
+            return await this._run(storeName, "readwrite", store => {
+                const request = store.delete(key);
+                return this._handleRequest(request, "Data dihapus", "Gagal menghapus");
+            });
+        } catch (err) {
+            console.error("[IndexedDB][delete]", err);
+            STATIC.toast("Error saat menghapus", "error");
+        }
+    }
+
+    async get(storeName, key) {
+        return await this._run(storeName, "readonly", store => {
+            return new Promise((resolve, reject) => {
+                const request = store.get(key);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (e) => reject(e);
+            });
+        });
+    }
+
+    async getAll(storeName) {
+        return await this._run(storeName, "readonly", store => {
+            return new Promise((resolve, reject) => {
+                const request = store.getAll();
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = (e) => reject(e);
+            });
+        });
+    }
+
+    _run(storeName, mode, callback) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) {
+                STATIC.toast("Database belum siap", "error");
+                reject("DB not ready");
+                return;
+            }
+
+            const tx     = this.db.transaction(storeName, mode);
+            const store  = tx.objectStore(storeName);
+
+            let result;
+            try {
+                result = callback(store);
+            } catch (err) {
+                reject(err);
+            }
+
+            tx.onerror   = (e) => reject(e);
+            tx.oncomplete = () => resolve(result);
+        });
+    }
+
+    _handleRequest(request, successMsg, errorMsg) {
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => {
+                if (successMsg) STATIC.toast(successMsg, "success");
+                resolve(true);
+            };
+            request.onerror = (e) => {
+                console.error("[IndexedDB][Request Error]", e);
+                if (errorMsg) STATIC.toast(errorMsg, "error");
+                reject(false);
+            };
+        });
+    }
+}
 
 
 window.addEventListener("DOMContentLoaded", () => {
