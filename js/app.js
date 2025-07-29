@@ -32,42 +32,46 @@ class AppController {
             await new Promise(resolve => setTimeout(resolve, 1000));
             await this.connect.start()
             await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.DBX.init({
+            await this.DB.init({
                 drivers : {
-                    options : { keyPath : 'NOLAMBUNG'},
+                    options : {keyPath : 'ID'},
                     indexes : [
-                            { name : 'namaX',   keyPath : 'NAMA'}, // basic
-                            { name : 'bidangX', keyPath : 'BIDANG'} , // basic
-                            { name : 'codeX',   keyPath : 'CODE'}, // basic
-                            { name : 'literX',  keyPath : 'LITER'}, // basic
-                            { name : 'lambungX',keyPath : 'NOLAMBUNG'}, // basic
+                            { keyPath : 'NAMA',     unique : true}, // basic
+                            { keyPath : 'NOLAMBUNG',unique : true}, // basic
+                            { keyPath : 'BIDANG'} , // basic
+                            { keyPath : 'CODE'}, // basic
+                            { keyPath : 'LITER'} // basic
                         ]
                 },
                 trx : {
+                    options : { keyPath : 'TRXID'},
                     indexes : [
-                            { name : 'idX',     keyPath : 'ID'}, // basic
-                            { name : 'bidangX', keyPath : 'BIDANG'}, // basic
-                            { name : 'dateX',   keyPath : 'DATE'} // basic
+                            { keyPath : 'TRXID',    unique : true}, // basic
+                            { keyPath : 'BIDANG'}, // basic
+                            { keyPath : 'DATE'} // basic
+                        ]
+                },
+                config : {
+                    options : { keyPath : 'TYPE'},
+                    indexes : [
+                            { keyPath : 'TYPE'}
                         ]
                 }
-            })
-    
-
-
+            });
+            
+            
             setTimeout(() => {
                 if(this.connect.isOnLine()) STATIC.loaderStop('Load setup complete ✅')
                 else STATIC.loaderStop('Bed connection')
                 this.connect.pause()
                 this.isStarting = false
                 document.querySelector("#home").classList.remove("dis-none")
-            }, 2000)
-
+            }, 2000);
                 
             let ttsUnlocked = false;
-                self = this
             document.querySelector("#start").onclick = () => {
                 console.log("Start button clicked");
-                if (ttsUnlocked) return self.start()
+                if (ttsUnlocked) return this.start()
                 const dummy = new SpeechSynthesisUtterance(" ");
                 window.speechSynthesis.speak(dummy);
                 ttsUnlocked = true;
@@ -1051,10 +1055,10 @@ class FaceRecognizer {
 
 class IndexedDBController {
     constructor(version = 1) {
-        this.dbName    = BBM;
-        this.version   = version;
-        this.db        = null;
-        this.schema    = {};
+        this.dbName     = 'BBM';
+        this.version    = version;
+        this.db         = null;
+        this.schema     = {};
     }
 
     async init(schema = {}) {
@@ -1073,7 +1077,6 @@ class IndexedDBController {
                 STATIC.toast("Database siap ✅", "success");
                 resolve(this);
             };
-
             request.onupgradeneeded = (e) => {
                 this.db = e.target.result;
                 for (const storeName in schema) {
@@ -1092,9 +1095,9 @@ class IndexedDBController {
         });
     }
 
-    async add(storeName, data) {
+    async add(storeName, keyPath, data) {
         try {
-            const existing = await this.get(storeName, data.id);
+            const existing = await this.get(storeName, keyPath);
             if (existing) {
                 STATIC.toast("Data sudah ada", "warning");
                 return false;
@@ -1182,11 +1185,8 @@ class IndexedDBController {
             const store  = tx.objectStore(storeName);
 
             let result;
-            try {
-                result = callback(store);
-            } catch (err) {
-                reject(err);
-            }
+            try { result = callback(store);}
+            catch (err) {reject(err);}
 
             tx.onerror   = (e) => reject(e);
             tx.oncomplete = () => resolve(result);
