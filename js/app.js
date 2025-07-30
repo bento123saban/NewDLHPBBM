@@ -1,14 +1,13 @@
 
-
 class AppController {
     constructor() {
         this.connect    = new connection(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
-        this.DB         = new IndexedDBController(this);
+        this.DB         = new IndexedDBController();
         this.isStarting = true
         this.startAll   = false;
-        this.DATA       = null
+        
     }
     
     async _init () {
@@ -27,40 +26,40 @@ class AppController {
             });
 
             await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.qrScanner._init()
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.face._init()
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.connect.start()
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await Location.getCurrent()
-
-
-            /*
-            await this.DB.init({
+            //await this.face._init()
+            //await new Promise(resolve => setTimeout(resolve, 1000));
+            //await this.connect.start()
+            //await new Promise(resolve => setTimeout(resolve, 1000));
+            /* await this.DB.init({
                 drivers : {
-                    options : {keyPath : 'NOLAMBUNG'},
+                    options : {keyPath : 'ID'},
                     indexes : [
                             { keyPath : 'NAMA',     unique : true}, // basic
-                            { keyPath : 'BIDANG'} ,                 // basic
-                            { keyPath : 'CODE'},                    // basic
-                            { keyPath : 'LITER'}                    // basic
+                            { keyPath : 'NOLAMBUNG',unique : true}, // basic
+                            { keyPath : 'BIDANG'} , // basic
+                            { keyPath : 'CODE'}, // basic
+                            { keyPath : 'LITER'} // basic
                         ]
                 },
                 trx : {
                     options : { keyPath : 'TRXID'},
                     indexes : [
-                            { keyPath : 'BIDANG'},                  // basic
-                            { keyPath : 'DATE'}                     // basic
+                            { keyPath : 'TRXID',    unique : true}, // basic
+                            { keyPath : 'BIDANG'}, // basic
+                            { keyPath : 'DATE'} // basic
                         ]
                 },
-                config : {options : { keyPath : 'TYPE'}}
-            });
-            */
+                config : {
+                    options : { keyPath : 'TYPE'},
+                    indexes : [
+                            { keyPath : 'TYPE'}
+                        ]
+                }
+            }); */
             
             
             setTimeout(() => {
-                if(this.connect.isOnLine()) STATIC.loaderStop('Setup Complete')
+                if(this.connect.isOnLine()) STATIC.loaderStop('Load setup complete ✅')
                 else STATIC.loaderStop('Bed connection')
                 this.connect.pause()
                 this.isStarting = false
@@ -107,21 +106,9 @@ class AppController {
     }
     
     _handleQRFailed(data) {
-        if (data.status === "denied") {
-            STATIC.verifyController({
-                status  : "denied",
-                text    : data.text || "QR Code tidak valid atau telah diblokir.",
-                speak   : data.speak || "QR Code tidak valid atau telah diblokir."
-            }).show();
-        } else if (data.status === "granted") {
-            STATIC.verifyController({
-                status  : "granted",
-                text    : data.text || "QR Code berhasil diverifikasi.",
-                speak   : data.speak || "QR Code berhasil diverifikasi."
-            }).show();
-        } else {
-            STATIC.toast(data.text || "Verifikasi QR gagal", "error");
-        }
+        const verify = STATIC.verifyController({status : data.status, text : data.text})
+        verify.show()
+        TTS.speak(data.speak, "", setTimeout(() => verify.clear(), 2500))
     }
     
 }
@@ -325,62 +312,249 @@ class TTS {
 }
 
 class RequestManager {
-    constructor(main) {
-        this.appCTRL     = main;
-        this.maxRetries  = 3;
-        this.retryDelay  = 1000; // ms
-        this.apiURL      = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
-        this.baseURL     = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
+    // ====== PROPERTIES & KONSTRUKTOR ======
+    constructor(main, config = {}) {
+        this.baseURL            = config.baseURL || "";
+        this.maxRetries         = config.maxRetries || 3;
+        this.retryDelay         = config.retryDelay || 600;     // ms
+        this.timeoutMs          = config.timeoutMs || 10000;    // ms
+        this.deferWhenHidden    = config.deferWhenHidden || false;
+        this.maxHiddenDeferMs   = config.maxHiddenDeferMs || 4000;
+        this.appCTRL            = main || null; // AppController instance
     }
 
-    _log(msg) {
-        console.log("[RequestManager]", msg);
-    }
-
+    // ====== METHOD PUBLIC ======
     isOnline() {
-        return this.appCTRL.connect?.isOnLine?.();
+        return this.appCTRL.connect.isOnLine();
     }
 
-    async post(data) {
-        if (!this.isOnline()) await STATIC.delay(1000);
-        if (!this.isOnline()) await STATIC.delay(1000);
-        if (!this.isOnline()) return onError({status : "offline", text: "Tidak ada koneksi internet."});
+    _log(...args) {
+        console.log("[RequestManager]", ...args);
+    }
+
+    _showToast(msg, type) {
+        STATIC.toast(msg, type);
+    }
+
+    async post(pathOrData = {}, dataArg, optionsArg) {
+        let path = "", data = {}, options = {};
+        if (typeof pathOrData === "string") {
+            path = pathOrData;
+            data = dataArg || {};
+            options = optionsArg || {};
+        } else {
+            data = pathOrData || {};
+            options = dataArg || {};
+        }
+
+        const url = this._joinURL(this.baseURL, path);
+        if (!this.baseURL) throw new Error("RequestManager.baseURL belum diset.");
+
+        // cek offline
+        if (!this.isOnline()) {
+            const offlineRes = this._makeResult(false, "OFFLINE", null, {
+                code: "OFFLINE",
+                message: "Tidak ada koneksi internet."
+            }, url, 0, 0, false);
+
+            this._log("📴 OFFLINE:", offlineRes);
+            this._showToast("Perangkat sedang offline!", "error");
+            return offlineRes;
+        }
+
+        // jika tab hidden, bisa ditunda
+        if (this.deferWhenHidden && typeof document !== "undefined" && document.hidden) {
+            this._log("⏸️ Menunda POST karena tab hidden");
+            await this._waitUntilVisible(this.maxHiddenDeferMs);
+        }
+
+        // idempotency-key biar aman saat retry
+        const requestId = this._makeUUID();
+        const headers = Object.assign({
+            "Accept": "application/json",
+            "Idempotency-Key": requestId
+        }, options.headers || {});
+
+        // body (JSON atau FormData)
+        let body = null;
+        const isFormData = (typeof FormData !== "undefined") && (data instanceof FormData);
+        if (isFormData) {
+            body = data;
+            delete headers["Content-Type"];
+        } else {
+            headers["Content-Type"] = "application/json";
+            body = JSON.stringify(data || {});
+        }
 
         let attempt = 0;
+        let retried = false;
+        const startAll = this._nowMs();
+
         while (attempt < this.maxRetries) {
+            attempt++;
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort("TIMEOUT"), this.timeoutMs);
+
             try {
-                const response = await fetch(this.baseURL, {
+                this._log(`📤 POST attempt ${attempt}/${this.maxRetries}`, { url });
+                const res = await fetch(url, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(data)
+                    headers,
+                    body,
+                    signal: controller.signal
                 });
+                clearTimeout(timer);
 
-                const result = await response.json();
+                const parsed = await this._smartParseResponse(res);
 
-                if (response.ok) {
-                    this._log(`✅ POST sukses`, result);
-                    return {status: "success",data : result}
-                } else {
-                    this._log(`❌ Gagal (status ${response.status})`, result);
-                    return { status: false, error: "Gagal request" }
+                if (res.ok) {
+                    const okRes = this._makeResult(true, "SUCCESS", res.status, null, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
+                    this._log("✅ Sukses:", okRes);
+                    return okRes;
                 }
+
+                // jika error tapi ga perlu retry
+                if (!this._shouldRetryHTTP(res) || attempt >= this.maxRetries) {
+                    const failRes = this._makeResult(false, this._statusFromHttp(res.status), res.status, {
+                        code: parsed.errorCode || "ERROR",
+                        message: parsed.errorMessage || `Gagal (status ${res.status})`
+                    }, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
+
+                    this._showToast(failRes.error.message, "error");
+                    return failRes;
+                }
+
+                retried = true;
+                await this._delay(this._computeBackoff(attempt, this.retryDelay, res));
 
             } catch (err) {
-                attempt++;
-                this._log(`⚠️ POST error attempt ${attempt}`, err);
+                clearTimeout(timer);
 
-                if (attempt >= this.maxRetries) {
-                    this._showToast("Gagal mengirim data ke server.", "error");
-                    return { success: false, error: err.message || err };
+                const code = this._classifyFetchError(err);
+                if (code === "ABORTED") {
+                    return this._makeResult(false, "ABORTED", null, { code, message: "Dibatalkan." }, url, attempt, this._nowMs() - startAll, retried, requestId);
                 }
 
-                await this._delay(this.retryDelay);
+                if (attempt >= this.maxRetries) {
+                    const fail = this._makeResult(false, code, null, {
+                        code,
+                        message: this._readableFetchError(err, code)
+                    }, url, attempt, this._nowMs() - startAll, retried, requestId);
+
+                    this._showToast(fail.error.message, "error");
+                    return fail;
+                }
+
+                retried = true;
+                await this._delay(this._computeBackoff(attempt, this.retryDelay));
             }
         }
+
+        return this._makeResult(false, "FAILED", null, {
+            code: "UNKNOWN",
+            message: "Gagal tanpa alasan yang diketahui."
+        }, url, attempt, this._nowMs() - startAll, retried, requestId);
+    }
+
+    // ====== UTILITIES PRIVATE ======
+    _nowMs() { return performance?.now() || Date.now(); }
+    _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+    _makeUUID() { return crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+
+    _joinURL(base, p) {
+        if (!p) return base;
+        if (base.endsWith("/") && p.startsWith("/")) return base + p.slice(1);
+        if (!base.endsWith("/") && !p.startsWith("/")) return base + "/" + p;
+        return base + p;
+    }
+
+    _makeResult(confirm, status, httpStatus, errorObj, url, attempt, durationMs, retried, requestId, data) {
+        return {
+            confirm,
+            status,
+            httpStatus,
+            data,
+            error: errorObj || null,
+            meta: {
+                requestId: requestId || this._makeUUID(),
+                attempt,
+                retried,
+                durationMs,
+                url
+            }
+        };
+    }
+
+    async _smartParseResponse(res) {
+        const ct = (res.headers.get("Content-Type") || "").toLowerCase();
+        const out = { data: null, errorMessage: null, errorCode: null };
+        try {
+            if (ct.includes("application/json")) {
+                out.data = await res.json();
+                if (!res.ok) {
+                    out.errorMessage = out.data?.message || null;
+                    out.errorCode = out.data?.code || null;
+                }
+            } else {
+                out.data = await res.text();
+            }
+        } catch {
+            out.errorMessage = "Gagal mem-parse respons server.";
+            out.errorCode = "PARSE_ERROR";
+        }
+        return out;
+    }
+
+    _shouldRetryHTTP(res) {
+        const s = res.status;
+        return s === 408 || s === 425 || s === 429 || (s >= 500 && s <= 599);
+    }
+
+    _statusFromHttp(s) {
+        if (s === 429) return "THROTTLED";
+        if (s === 408) return "TIMEOUT";
+        if (s >= 500) return "SERVER_ERROR";
+        if (s >= 400) return "CLIENT_ERROR";
+        return "FAILED";
+    }
+
+    _computeBackoff(attempt, baseDelay, res) {
+        const retryAfter = res?.headers?.get?.("Retry-After");
+        if (retryAfter) {
+            const sec = parseInt(retryAfter, 10);
+            if (!isNaN(sec)) return sec * 1000;
+        }
+        return Math.min(30000, baseDelay * Math.pow(2, attempt - 1)) + Math.random() * 500;
+    }
+
+    _classifyFetchError(err) {
+        if (err.name === "AbortError" || err.message === "ABORTED") return "ABORTED";
+        if (err.message === "TIMEOUT") return "TIMEOUT";
+        return navigator?.onLine ? "NETWORK_ERROR" : "CORS";
+    }
+
+    _readableFetchError(err, code) {
+        if (code === "TIMEOUT") return "Timeout! Periksa koneksi.";
+        if (code === "CORS") return "Diblokir CORS.";
+        if (code === "NETWORK_ERROR") return "Jaringan error. Cek koneksi.";
+        return err.message || "Error jaringan.";
+    }
+
+    async _waitUntilVisible(ms) {
+        if (typeof document === "undefined" || !document.hidden) return;
+        return new Promise(resolve => {
+            const timer = setTimeout(() => resolve(), ms);
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) {
+                    clearTimeout(timer);
+                    resolve();
+                }
+            }, { once: true });
+        });
     }
 }
+
+
 
 class QRScanner {
     constructor(main, onSuccess, onFailed) {
@@ -422,9 +596,6 @@ class QRScanner {
             this.isPaused   = false;
             this.hasStarted = false;
             this.isVerify   = false;
-            this.openCount  = 3;
-            
-            if (this.restartBtn) this.restartBtn.onclick = () => this.start();
         
             return true
         } catch (err) {
@@ -435,7 +606,7 @@ class QRScanner {
     }
 
     async start() {
-        var self = this
+        if (!this._init()) return
 
         if (this.isScanning || this.isRunning || this.isVerify) return;
         
@@ -475,20 +646,8 @@ class QRScanner {
             this.isRunning = false;
             this.stop();
             console.error("QRScanner start error:", err.message);
-            const timeOut = setTimeout(() => {
-                self.openCount --
-                if (self.openCount == 0) {
-                    self.openCount = 3
-                    clearTimeout(timeOut)
-                    return self.onFailed({
-                        status  : "failed",
-                        text    : "[QRScanner] Error saat membuka kamera. " + err.message,
-                        speak   : "Gagal membuka kamera setelah 3 kali percobaan. Silahkan hubungi admin untuk bantuan lebih lanjut. "
-                    })
-                }
-                STATIC.toast("Mengulang membuka kamera.", "error");
-                self.start()
-            }, 1000)
+        } finally {
+            this.restartBtn.onclick = async () => await this.start();
         }
     }
 
@@ -602,9 +761,9 @@ class QRScanner {
                 throw new Error('Code tidak ditemukan atau invalid')
             }
             
+            const success = this.requestData(qrData.code)
             clearTimeout(timeout);
-            this.pause();
-            this.requestData(qrData.code)
+            this.stop(); // stop QRScanner
             return console.log("QR Bendhard16")
 
         } catch (err) {
@@ -682,41 +841,10 @@ class QRScanner {
         if (!el) return;
         el.classList.add("dis-none");
     }
-
-    requestData(code) {
-        if (!this.appCTRL || !this.appCTRL.connect) {
-            console.error("AppController atau koneksi tidak tersedia.");
-            return;
-        }
-
-        this.main.RequestManager.post({ type : "QRrequest", code: code })
-            .then(response => {
-                if (response.success) {
-                    this.onSuccess(response.data);
-                } else {
-                    this.onFailed({
-                        status: "denied",
-                        text: response.error || "Gagal memverifikasi QR Code.",
-                        speak: "Gagal memverifikasi QR Code."
-                    });
-                }
-            })
-            .catch(err => {
-                console.error("Request error:", err);
-                this.onFailed({
-                    status: "failed",
-                    text: err.message || "Terjadi kesalahan saat mengirim data.",
-                    speak: "Terjadi kesalahan saat mengirim data."
-                });
-            });
-    }
 }
 
 class FaceRecognizer {
-    constructor (main, onSuccess  = "", onFailure = "") {
-
-        this.appCTRL        = main
-
+    constructor (onSuccess  = "", onFailure = "") {
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
@@ -1084,24 +1212,18 @@ class FaceRecognizer {
     async stop() {
         try {
             if (this.human) {
-            // Stop semua proses Human.js (misalnya face detection, body tracking, dll)
-            this.human.stop(); // stop inference loop
-
-            // Hentikan stream kamera
-            if (this.videoElement && this.videoElement.srcObject) {
-                const tracks = this.videoElement.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-                this.videoElement.srcObject = null;
-            }
-
-            // Clear canvas preview atau apapun yang sedang ditampilkan
-            const canvas = document.querySelector("canvas");
-            if (canvas) canvas.remove();
-
-            // Optional: buang instance kalau ingin benar-benar terminate
-            this.human = null;
-
-            console.log("🛑 Human.js terminated cleanly.");
+                // Stop semua proses Human.js (misalnya face detection, body tracking, dll)
+                this.human.stop(); // stop inference loop
+                // Hentikan stream kamera
+                if (this.videoElement && this.videoElement.srcObject) {
+                    const tracks = this.videoElement.srcObject.getTracks();
+                    tracks.forEach(track => track.stop());
+                    this.videoElement.srcObject = null;
+                }
+                // Clear canvas preview atau apapun yang sedang ditampilkan
+                const canvas = document.querySelector("canvas");
+                if (canvas) canvas.remove();
+                    
             }
         } catch (err) {
             console.error("❌ Gagal stop Human.js:", err);
@@ -1113,8 +1235,7 @@ class FaceRecognizer {
 }
 
 class IndexedDBController {
-    constructor(main, version = 1) {
-        this.appCTRL    = main
+    constructor(version = 1) {
         this.dbName     = 'BBM';
         this.version    = version;
         this.db         = null;
@@ -1267,37 +1388,6 @@ class IndexedDBController {
         });
     }
 }
-
-class Location {
-    static getCurrent(success, error) {
-        if (!navigator.geolocation) {
-            error?.("Geolocation tidak didukung.");
-            return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const { latitude, longitude, accuracy } = pos.coords;
-                success?.({ latitude, longitude, accuracy, timestamp: pos.timestamp });
-                if(!success) console.log("Lokasi berhasil diambil:", { latitude, longitude, accuracy, timestamp: pos.timestamp });
-            },
-            (err) => {
-                let msg = {
-                    1: "Akses lokasi ditolak.",
-                    2: "Lokasi tidak tersedia.",
-                    3: "Timeout mengambil lokasi."
-                }[err.code] || "Kesalahan tak dikenal.";
-                error?.(msg);
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 0
-            }
-        );
-    }
-}
-
 
 
 window.addEventListener("DOMContentLoaded", () => {
