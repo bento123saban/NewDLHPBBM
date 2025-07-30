@@ -2,12 +2,13 @@
 class AppController {
     constructor() {
         this.connect    = new connection(this);
+        this.request    = new RequestManager(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
         this.DB         = new IndexedDBController();
         this.isStarting = true
         this.startAll   = false;
-        
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec");
     }
     
     async _init () {
@@ -312,34 +313,52 @@ class TTS {
 }
 
 class RequestManager {
-    // ====== PROPERTIES & KONSTRUKTOR ======
-    constructor(main, config = {}) {
-        this.baseURL            = config.baseURL || "";
-        this.maxRetries         = config.maxRetries || 3;
-        this.retryDelay         = config.retryDelay || 600;     // ms
-        this.timeoutMs          = config.timeoutMs || 10000;    // ms
-        this.deferWhenHidden    = config.deferWhenHidden || false;
-        this.maxHiddenDeferMs   = config.maxHiddenDeferMs || 4000;
-        this.appCTRL            = main || null; // AppController instance
+    constructor(main) {
+        this.maxRetries         = 3;
+        this.retryDelay         = 600;      // ms
+        this.timeoutMs          = 10000;    // ms
+        this.deferWhenHidden    = false;
+        this.maxHiddenDeferMs   = 4000;
+
+        this.appCTRL            = main || null; 
+        // fallback baseURL (kalau nggak lewat appCTRL)
+        this.baseURL            = (typeof STATIC !== "undefined" && STATIC.URL) ? STATIC.URL : "";
+
+        // URL getter read-only: selalu sinkron ke appCTRL.baseURL jika ada
+        var self = this;
+        if (!Object.getOwnPropertyDescriptor(this, "URL")) {
+            Object.defineProperty(this, "URL", {
+                enumerable   : true,
+                configurable : false,
+                get          : function () {
+                    var raw = (self.appCTRL && self.appCTRL.baseURL) ? self.appCTRL.baseURL : self.baseURL;
+                    return self._normalizeBaseURL(raw);
+                }
+            });
+        }
     }
 
-    // ====== METHOD PUBLIC ======
+    // ====== PUBLIC ======
     isOnline() {
-        return this.appCTRL.connect.isOnLine();
+        try {
+            if (this.appCTRL && this.appCTRL.connect && typeof this.appCTRL.connect.isOnLine === "function") {
+                return !!this.appCTRL.connect.isOnLine();
+            }
+        } catch (_) {}
+        return (typeof navigator !== "undefined") ? !!navigator.onLine : true;
     }
 
-    _log(...args) {
-        console.log("[RequestManager]", ...args);
+    _log() { 
+        try { 
+            var args = Array.prototype.slice.call(arguments);
+            console.log.apply(console, ["[RequestManager]"].concat(args)); 
+        } catch(_) {}
     }
 
-    _showToast(msg, type) {
-        STATIC.toast(msg, type);
-    }
-
-    async post(pathOrData = {}, dataArg, optionsArg) {
-        let path = "", data = {}, options = {};
+    async post(pathOrData, dataArg, optionsArg) {
+        var path = "", data = {}, options = {};
         if (typeof pathOrData === "string") {
-            path = pathOrData;
+            path = pathOrData || "";
             data = dataArg || {};
             options = optionsArg || {};
         } else {
@@ -347,80 +366,73 @@ class RequestManager {
             options = dataArg || {};
         }
 
-        const url = this._joinURL(this.baseURL, path);
-        if (!this.baseURL) throw new Error("RequestManager.baseURL belum diset.");
+        var base = this._requireBaseURL();                 // <- perbaikan utama
+        var url  = this._joinURL(base, path);
 
-        // cek offline
         if (!this.isOnline()) {
-            const offlineRes = this._makeResult(false, "OFFLINE", null, {
+            var offlineRes = this._makeResult(false, "OFFLINE", null, {
                 code: "OFFLINE",
                 message: "Tidak ada koneksi internet."
             }, url, 0, 0, false);
-
             this._log("📴 OFFLINE:", offlineRes);
-            this._showToast("Perangkat sedang offline!", "error");
+            this._safeToast("error", "Perangkat sedang offline!");
             return offlineRes;
         }
 
-        // jika tab hidden, bisa ditunda
         if (this.deferWhenHidden && typeof document !== "undefined" && document.hidden) {
             this._log("⏸️ Menunda POST karena tab hidden");
             await this._waitUntilVisible(this.maxHiddenDeferMs);
         }
 
-        // idempotency-key biar aman saat retry
-        const requestId = this._makeUUID();
-        const headers = Object.assign({
-            "Accept": "application/json",
+        var requestId = this._makeUUID();
+        var headers = Object.assign({
+            "Accept": "application/json, text/plain;q=0.9, */*;q=0.8",
             "Idempotency-Key": requestId
         }, options.headers || {});
 
-        // body (JSON atau FormData)
-        let body = null;
-        const isFormData = (typeof FormData !== "undefined") && (data instanceof FormData);
+        var body = null;
+        var isFormData = (typeof FormData !== "undefined") && (data instanceof FormData);
         if (isFormData) {
             body = data;
             delete headers["Content-Type"];
         } else {
-            headers["Content-Type"] = "application/json";
-            body = JSON.stringify(data || {});
+            headers["Content-Type"] = headers["Content-Type"] || "application/json";
+            body = headers["Content-Type"].indexOf("application/json") >= 0 ? JSON.stringify(data || {}) : (data || "");
         }
 
-        let attempt = 0;
-        let retried = false;
-        const startAll = this._nowMs();
+        var attempt = 0;
+        var retried = false;
+        var startAll = this._nowMs();
 
         while (attempt < this.maxRetries) {
             attempt++;
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort("TIMEOUT"), this.timeoutMs);
+            var controller = new AbortController();
+            var to = setTimeout(function () { try{ controller.abort("TIMEOUT"); }catch(_){}} , this.timeoutMs);
 
             try {
-                this._log(`📤 POST attempt ${attempt}/${this.maxRetries}`, { url });
-                const res = await fetch(url, {
+                this._log("📤 POST attempt " + attempt + "/" + this.maxRetries, { url: url });
+                var res = await fetch(url, {
                     method: "POST",
-                    headers,
-                    body,
+                    headers: headers,
+                    body: body,
                     signal: controller.signal
                 });
-                clearTimeout(timer);
+                clearTimeout(to);
 
-                const parsed = await this._smartParseResponse(res);
+                var parsed = await this._smartParseResponse(res);
 
                 if (res.ok) {
-                    const okRes = this._makeResult(true, "SUCCESS", res.status, null, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
+                    var okRes = this._makeResult(true, "SUCCESS", res.status, null, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
                     this._log("✅ Sukses:", okRes);
                     return okRes;
                 }
 
-                // jika error tapi ga perlu retry
                 if (!this._shouldRetryHTTP(res) || attempt >= this.maxRetries) {
-                    const failRes = this._makeResult(false, this._statusFromHttp(res.status), res.status, {
+                    var failRes = this._makeResult(false, this._statusFromHttp(res.status), res.status, {
                         code: parsed.errorCode || "ERROR",
-                        message: parsed.errorMessage || `Gagal (status ${res.status})`
+                        message: parsed.errorMessage || ("Gagal (status " + res.status + ")")
                     }, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
-
-                    this._showToast(failRes.error.message, "error");
+                    this._safeToast("error", failRes.error.message);
                     return failRes;
                 }
 
@@ -428,20 +440,19 @@ class RequestManager {
                 await this._delay(this._computeBackoff(attempt, this.retryDelay, res));
 
             } catch (err) {
-                clearTimeout(timer);
+                clearTimeout(to);
 
-                const code = this._classifyFetchError(err);
+                var code = this._classifyFetchError(err);
                 if (code === "ABORTED") {
-                    return this._makeResult(false, "ABORTED", null, { code, message: "Dibatalkan." }, url, attempt, this._nowMs() - startAll, retried, requestId);
+                    return this._makeResult(false, "ABORTED", null, { code: code, message: "Dibatalkan." }, url, attempt, this._nowMs() - startAll, retried, requestId);
                 }
 
                 if (attempt >= this.maxRetries) {
-                    const fail = this._makeResult(false, code, null, {
-                        code,
+                    var fail = this._makeResult(false, code, null, {
+                        code: code,
                         message: this._readableFetchError(err, code)
                     }, url, attempt, this._nowMs() - startAll, retried, requestId);
-
-                    this._showToast(fail.error.message, "error");
+                    this._safeToast("error", fail.error.message);
                     return fail;
                 }
 
@@ -456,10 +467,34 @@ class RequestManager {
         }, url, attempt, this._nowMs() - startAll, retried, requestId);
     }
 
-    // ====== UTILITIES PRIVATE ======
-    _nowMs() { return performance?.now() || Date.now(); }
-    _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
-    _makeUUID() { return crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+    // ====== PRIVATE UTILS ======
+    _normalizeBaseURL(u) {
+        if (typeof u !== "string") return "";
+        var s = u.trim();
+        if (!s) return "";
+        if (/^\/\//.test(s)) s = "https:" + s;
+        if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+        s = s.replace(/\/+$/, "");
+        return s;
+    }
+
+    _requireBaseURL() {
+        var u = this.URL;
+        if (!u) throw new Error("RequestManager.baseURL belum diset (AppController/baseURL kosong).");
+        return u;
+    }
+
+    _nowMs() {
+        try { return (typeof performance !== "undefined" && typeof performance.now === "function") ? performance.now() : Date.now(); }
+        catch(_) { return Date.now(); }
+    }
+
+    _delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+    _makeUUID() {
+        try { return (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)); }
+        catch(_) { return (Date.now() + "-" + Math.random().toString(16).slice(2)); }
+    }
 
     _joinURL(base, p) {
         if (!p) return base;
@@ -470,35 +505,42 @@ class RequestManager {
 
     _makeResult(confirm, status, httpStatus, errorObj, url, attempt, durationMs, retried, requestId, data) {
         return {
-            confirm,
-            status,
-            httpStatus,
-            data,
-            error: errorObj || null,
-            meta: {
-                requestId: requestId || this._makeUUID(),
-                attempt,
-                retried,
-                durationMs,
-                url
+            confirm: !!confirm,
+            status : status,
+            httpStatus: (typeof httpStatus === "number") ? httpStatus : null,
+            data   : data || null,
+            error  : errorObj || null,
+            meta   : {
+                requestId : requestId || this._makeUUID(),
+                attempt   : attempt || 0,
+                retried   : !!retried,
+                durationMs: Math.max(0, Math.round(durationMs || 0)),
+                url       : url
             }
         };
     }
 
     async _smartParseResponse(res) {
-        const ct = (res.headers.get("Content-Type") || "").toLowerCase();
-        const out = { data: null, errorMessage: null, errorCode: null };
+        var ct = (res.headers.get("Content-Type") || "").toLowerCase();
+        var out = { data: null, errorMessage: null, errorCode: null, raw: null };
         try {
-            if (ct.includes("application/json")) {
+            if (ct.indexOf("application/json") >= 0) {
                 out.data = await res.json();
                 if (!res.ok) {
-                    out.errorMessage = out.data?.message || null;
-                    out.errorCode = out.data?.code || null;
+                    out.errorMessage = (out.data && (out.data.message || out.data.error || out.data.msg)) || null;
+                    out.errorCode    = (out.data && (out.data.code    || out.data.errorCode)) || null;
                 }
+            } else if (ct.indexOf("text/") >= 0) {
+                var txt = await res.text();
+                out.raw = txt;
+                try { out.data = JSON.parse(txt); } catch(_) { out.data = txt; }
+                if (!res.ok) out.errorMessage = (typeof out.data === "string") ? out.data.slice(0, 300) : null;
             } else {
-                out.data = await res.text();
+                // blob/unknown
+                try { out.raw = await res.blob(); } catch(_) { out.raw = null; }
+                out.data = out.raw;
             }
-        } catch {
+        } catch(_) {
             out.errorMessage = "Gagal mem-parse respons server.";
             out.errorCode = "PARSE_ERROR";
         }
@@ -506,8 +548,8 @@ class RequestManager {
     }
 
     _shouldRetryHTTP(res) {
-        const s = res.status;
-        return s === 408 || s === 425 || s === 429 || (s >= 500 && s <= 599);
+        var s = res.status;
+        return (s === 408 || s === 425 || s === 429 || (s >= 500 && s <= 599));
     }
 
     _statusFromHttp(s) {
@@ -519,40 +561,57 @@ class RequestManager {
     }
 
     _computeBackoff(attempt, baseDelay, res) {
-        const retryAfter = res?.headers?.get?.("Retry-After");
-        if (retryAfter) {
-            const sec = parseInt(retryAfter, 10);
-            if (!isNaN(sec)) return sec * 1000;
-        }
-        return Math.min(30000, baseDelay * Math.pow(2, attempt - 1)) + Math.random() * 500;
+        var retryAfterMs = 0;
+        try {
+            var ra = res && res.headers && res.headers.get && res.headers.get("Retry-After");
+            if (ra) {
+                var sec = parseInt(ra, 10);
+                if (!isNaN(sec)) retryAfterMs = sec * 1000;
+            }
+        } catch(_) {}
+        var expo   = Math.min(30000, Math.round(baseDelay * Math.pow(2, Math.max(0, attempt - 1))));
+        var jitter = Math.floor(Math.random() * Math.min(1000, baseDelay));
+        return Math.max(retryAfterMs, expo + jitter);
     }
 
     _classifyFetchError(err) {
-        if (err.name === "AbortError" || err.message === "ABORTED") return "ABORTED";
-        if (err.message === "TIMEOUT") return "TIMEOUT";
-        return navigator?.onLine ? "NETWORK_ERROR" : "CORS";
+        var msg = (err && (err.message || "")) || "";
+        var name = (err && err.name) || "";
+        if (name === "AbortError" || msg === "ABORTED") return "ABORTED";
+        if (msg === "TIMEOUT") return "TIMEOUT";
+        // Heuristik: kalau online tapi gagal, kemungkinan CORS; kalau offline, network error
+        return (typeof navigator !== "undefined" && navigator.onLine) ? "CORS" : "NETWORK_ERROR";
     }
 
     _readableFetchError(err, code) {
         if (code === "TIMEOUT") return "Timeout! Periksa koneksi.";
-        if (code === "CORS") return "Diblokir CORS.";
-        if (code === "NETWORK_ERROR") return "Jaringan error. Cek koneksi.";
-        return err.message || "Error jaringan.";
+        if (code === "CORS")    return "Permintaan diblokir oleh kebijakan CORS.";
+        if (code === "NETWORK_ERROR") return "Jaringan error. Cek koneksi atau VPN.";
+        if (code === "ABORTED") return "Permintaan dibatalkan.";
+        return (err && err.message) || "Terjadi kesalahan jaringan.";
     }
 
     async _waitUntilVisible(ms) {
         if (typeof document === "undefined" || !document.hidden) return;
-        return new Promise(resolve => {
-            const timer = setTimeout(() => resolve(), ms);
-            document.addEventListener("visibilitychange", () => {
-                if (!document.hidden) {
-                    clearTimeout(timer);
-                    resolve();
-                }
-            }, { once: true });
+        return new Promise(function (resolve) {
+            var t = setTimeout(function () { resolve(); }, Math.max(0, ms || 0));
+            function onVis() {
+                if (!document.hidden) { clearTimeout(t); resolve(); }
+            }
+            document.addEventListener("visibilitychange", onVis, { once: true });
         });
     }
+
+    _safeToast(type, msg) {
+        try {
+            if (!msg) return;
+            if (typeof STATIC !== "undefined" && typeof STATIC.toast === "function") {
+                STATIC.toast(msg, type || "info");
+            }
+        } catch(_) {}
+    }
 }
+
 
 
 
