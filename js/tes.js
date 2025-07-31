@@ -1,65 +1,74 @@
-class IndexedDBController {
-    constructor(dbName, version) {
-        this.dbName   = dbName;
-        this.version  = version;
-        this.db       = null;
-        this.stores   = {};  // Simpan store schema
-        this._pendingDeleteIndexes = []; // Queue hapus index
+
+
+    async startScanner() {
+        if (this.state.scanning || this.state.transitioning || this.state.stopping) return;
+
+        if (this.cameras.length === 0) await this.initCameras();
+        if (this.cameras.length === 0) return;
+
+        this.state.transitioning = true;
+        this.state.scanning = true;
+        //this.toggleScanUI(true);
+
+        const config = { fps: 60, qrbox: { width: 300, height: 500 } };
+        const onScanSuccess = async (decodedText) => {
+            const now = Date.now();
+            if (decodedText === this.state.lastScan.text && now - this.state.lastScan.time < 5000) return;
+
+            this.state.lastScan = { text: decodedText, time: now };
+            const checks = await this.encodeCheck(decodedText);
+            if (!checks.status) return;
+            await this.main.dataCtrl.run(checks.data);
+        };
+
+        try {
+            await this.html5QrCode.start(
+                { deviceId: { exact: this.cameras[this.currentCamIndex].id } },
+                config,
+                onScanSuccess
+            );
+        } catch {
+            try {
+                await this.safeStop();
+                this.html5QrCode = new Html5Qrcode("reader");
+                await this.html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+            } catch (fallbackErr) {
+                console.error("[QRScanner] Start gagal total:", fallbackErr);
+                this.state.scanning = false;
+                this.state.transitioning = false;
+            }
+        }
+
+        this.state.transitioning = false;
     }
 
-    init(stores) {
-        this.stores = stores;
 
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, this.version);
 
-            request.onupgradeneeded = event => {
-                const db = event.target.result;
 
-                // Buat semua store & index seperti biasa
-                for (const [storeName, config] of Object.entries(this.stores)) {
-                    let store;
-                    if (!db.objectStoreNames.contains(storeName)) {
-                        store = db.createObjectStore(storeName, config.options || { keyPath: "id" });
-                    } else {
-                        store = request.transaction.objectStore(storeName);
-                    }
 
-                    // Tambah index kalau belum ada
-                    const existingIndexes = Array.from(store.indexNames);
-                    const indexList = config.indexes || [];
 
-                    indexList.forEach(idx => {
-                        const name = idx.name || idx.keyPath;
-                        if (!existingIndexes.includes(name)) {
-                            store.createIndex(name, idx.keyPath, { unique: idx.unique || false });
-                        }
-                    });
 
-                    // 🔥 Hapus index sesuai queue
-                    const deleteQueue = this._pendingDeleteIndexes.filter(d => d.store === storeName);
-                    deleteQueue.forEach(d => {
-                        if (store.indexNames.contains(d.index)) {
-                            store.deleteIndex(d.index);
-                            console.warn(`Index "${d.index}" di store "${storeName}" dihapus.`);
-                        }
-                    });
+        this.dom.switchCameraBtn?.addEventListener("click", async () => {
+            if (this.cameras.length < 2 || this.state.switchingCamera) return;
+
+            this.state.switchingCamera = true;
+            this.dom.switchCameraBtn.classList.add("off");
+
+            this.currentCamIndex = (this.currentCamIndex + 1) % this.cameras.length;
+
+            try {
+                if (this.state.scanning) {
+                    await this.stopScanner();
+                    await this.startScanner();
                 }
-            };
+            } catch (e) {
+                console.warn("[QRScanner] Switch error:", e);
+            }
 
-            request.onsuccess = event => {
-                this.db = event.target.result;
-                resolve();
-            };
-
-            request.onerror = err => reject(err);
+            this.dom.switchCameraBtn.classList.remove("off");
+            this.state.switchingCamera = false;
         });
-    }
 
-    // ✅ Method hapus index, akan aktif di init() versi baru
-    removeIndex(storeName, indexName) {
-        this._pendingDeleteIndexes.push({ store: storeName, index: indexName });
-        this.version++; // Wajib naikkan versi untuk trigger upgrade
-        console.info(`[IndexedDB] Jadwalkan hapus index "${indexName}" dari store "${storeName}" di versi ${this.version}`);
-    }
-}
+
+
+

@@ -631,10 +631,11 @@ class QRScanner {
         this.counterEl          = document.getElementById("cams-timeout-counter");
         this.scanGuide          = document.querySelector(".scan-guide-line");
     }
-
     
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
+        //console.log(code)
+        this.stop()
         const post =  await this.appCTRL.request.post({
             action  : 'getDriver',
             code    : code
@@ -701,9 +702,9 @@ class QRScanner {
                     fps: 50,
                     rememberLastUsedCamera: true,
                 },
-                (decodedText) => {
+                async (decodedText) => {
                     this.pause()
-                    this._QRVerify(decodedText)
+                    await this._QRVerify(decodedText)
                 },
                 () => this.isVerify = false
             )
@@ -771,10 +772,13 @@ class QRScanner {
         }
     }
 
-    _QRVerify(qrText) {
+    async _QRVerify(qrText) {
         if (this.isVerify || !qrText || qrText.length <= 10) return;
 
         this.isVerify = true;
+        
+        console.log(qrText)
+        //return
         /*
         const blockedQR = JSON.parse(localStorage.getItem("bnd-blc"))
         if  (blockedQR.includes(qrText)) {
@@ -828,9 +832,9 @@ class QRScanner {
                 throw new Error('Code tidak ditemukan atau invalid')
             }
             
-            const success = this._requestData(qrData.code)
             clearTimeout(timeout);
             this.stop(); // stop QRScanner
+            const success = await this._requestData(qrData.code)
             return console.log("QR Bendhard16")
 
         } catch (err) {
