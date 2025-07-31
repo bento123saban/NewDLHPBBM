@@ -8,7 +8,7 @@ class AppController {
         this.DB         = new IndexedDBController();
         this.isStarting = true
         this.startAll   = false;
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec");
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?";
     }
     
     async _init () {
@@ -26,10 +26,10 @@ class AppController {
                 }
             });
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            //await this.face._init()
             //await new Promise(resolve => setTimeout(resolve, 1000));
-            //await this.connect.start()
+            //await this.face._init()
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await this.connect.start()
             //await new Promise(resolve => setTimeout(resolve, 1000));
             /* await this.DB.init({
                 drivers : {
@@ -318,13 +318,9 @@ class RequestManager {
         this.retryDelay         = 600;      // ms
         this.timeoutMs          = 10000;    // ms
         this.deferWhenHidden    = false;
-        this.maxHiddenDeferMs   = 4000;
-
-        this.appCTRL            = main || null; 
-        // fallback baseURL (kalau nggak lewat appCTRL)
+        this.maxHiddenDeferMs   = 4000; 
+        this.appCTRL            = main || null;
         this.baseURL            = (typeof STATIC !== "undefined" && STATIC.URL) ? STATIC.URL : "";
-
-        // URL getter read-only: selalu sinkron ke appCTRL.baseURL jika ada
         var self = this;
         if (!Object.getOwnPropertyDescriptor(this, "URL")) {
             Object.defineProperty(this, "URL", {
@@ -634,14 +630,17 @@ class QRScanner {
     
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
-        //console.log(code)
         this.stop()
         const post =  await this.appCTRL.request.post({
             action  : 'getDriver',
             code    : code
         })
         console.log(post)
-        STATIC.loaderStop('requestDone')
+
+        if (post.confirm) return await this.onSuccess(post)
+
+    
+        
     }
 
     async _init() {
@@ -699,14 +698,17 @@ class QRScanner {
             await this.qrCodeScanner.start(
                 camId, // ✅ Gunakan langsung string ID, bukan object
                 {
-                    fps: 50,
+                    fps: 60,
                     rememberLastUsedCamera: true,
                 },
                 async (decodedText) => {
                     this.pause()
                     await this._QRVerify(decodedText)
                 },
-                () => this.isVerify = false
+                () => {
+                    console.log("_")
+                    this.isVerify = false
+                }
             )
             this.hasStarted = true;
         } catch (err) {
@@ -911,6 +913,10 @@ class QRScanner {
     _hideElement(el) {
         if (!el) return;
         el.classList.add("dis-none");
+    }
+
+    _retryControl () {
+        
     }
     
 }
@@ -1462,10 +1468,25 @@ class IndexedDBController {
 }
 
 
-window.addEventListener("DOMContentLoaded", () => {
+window.addEventListener("DOMContentLoaded", async () => {
     STATIC.loaderRun('Connecting...')
-    new AppController()._init()
+    const app = new AppController()
+    await app._init();
+    await app.qrScanner._requestData("X-016")
+
+    
+    
     const videos = document.querySelectorAll("video");
+    /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            type : "getDriver",
+            code : "A-001"
+        })
+    })*/
     videos.forEach(video => {
         const stream = video.srcObject;
         if (stream && stream.getTracks) {
@@ -1477,7 +1498,7 @@ window.addEventListener("DOMContentLoaded", () => {
     });
     const encript = btoa(JSON.stringify({
         auth : "Bendhard16",
-        code : 'A-001'
+        code : 'X-016'
     }))
     console.log(encript)
     console.log(JSON.parse(atob(encript)))
