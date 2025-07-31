@@ -612,9 +612,6 @@ class RequestManager {
     }
 }
 
-
-
-
 class QRScanner {
     constructor(main, onSuccess, onFailed) {
 
@@ -623,7 +620,7 @@ class QRScanner {
         this.onFailed           = onFailed;
         this.falseCount         = 0;
         this.maxFalse           = 15
-        this.counter            = 5; // 60 detik timeout
+        this.counter            = 60; // 60 detik timeout
 
         this.qrCodeScanner      = null;
         this.countdownInterval  = null;
@@ -633,6 +630,17 @@ class QRScanner {
         this.restartBtn         = document.getElementById("restart-scan-btn");
         this.counterEl          = document.getElementById("cams-timeout-counter");
         this.scanGuide          = document.querySelector(".scan-guide-line");
+    }
+
+    
+    async _requestData(code) {
+        STATIC.loaderRun('Request Data')
+        const post =  await this.appCTRL.request.post({
+            action  : 'getDriver',
+            code    : code
+        })
+        console.log(post)
+        STATIC.loaderStop('requestDone')
     }
 
     async _init() {
@@ -820,7 +828,7 @@ class QRScanner {
                 throw new Error('Code tidak ditemukan atau invalid')
             }
             
-            const success = this.requestData(qrData.code)
+            const success = this._requestData(qrData.code)
             clearTimeout(timeout);
             this.stop(); // stop QRScanner
             return console.log("QR Bendhard16")
@@ -900,6 +908,7 @@ class QRScanner {
         if (!el) return;
         el.classList.add("dis-none");
     }
+    
 }
 
 class FaceRecognizer {
@@ -1462,11 +1471,12 @@ window.addEventListener("DOMContentLoaded", () => {
             video.srcObject = null;
         }
     });
-    console.log(btoa(JSON.stringify({
+    const encript = btoa(JSON.stringify({
         auth : "Bendhard16",
-        code : btoa("A-001")
-    })))
-    console.log(JSON.parse(atob("eyJhdXRoIjoiQmVuZGhhcmQxNiIsImNvZGUiOiJRUzB3TURFPSJ9")))
+        code : 'A-001'
+    }))
+    console.log(encript)
+    console.log(JSON.parse(atob(encript)))
 });
 
 window.addEventListener('beforeunload', () => {
