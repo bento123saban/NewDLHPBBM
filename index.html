@@ -54,7 +54,7 @@
             <div id="qr-reader" class="relative w-100 h-100 hidden"></div>
             <div id="camera-btn" class="flex-evenly">
                 <button id="scan-switch" class="btn-manual hidden dis-none"><i class="fas fa-code fz-24"></i></button>
-                <button id="restart-scan-btn" class="btn-scan-restart pointer"><i class="fas fa-qrcode fz-24"></i></button>
+                <button id="restart-scan-btn" class="btn-scan-restart pointer dis-none  "><i class="fas fa-qrcode fz-24"></i></button>
             </div>
             
             <span id="qr-text" class="clr-white bolder fz-24"></span>
@@ -64,11 +64,10 @@
                 <div class="line ln3"></div>
                 <div class="line ln4"></div>
             </div>
-            <div id="scan-warn" class="absolute-top grid-center w-100 h-100">
-                <div class="align-center white p-15 borad-5" id="sc-warn-box">
-                    <i class="fas fa-circle-exclamation fz-40"></i>
-                    <h4>Warn Header</h4>
-                    <p class="align-justify w-80 red">Lorem ipsum dolor sit amet</p>
+            <div id="scan-warn" class="absolute-top grid-center w-100 h-100 ">
+                <div class="align-center white p-0 borad-5 hidden " id="sc-warn-box">
+                    <h5 class="m-0 p-10 red align-center">Warn Header</h5>
+                    <p class="align-center clr-white p-10 bolder m-0 fz-12">Lorem ipsum dolor sit amet</p>
                 </div>
             </div>
         </div>
@@ -152,16 +151,15 @@
     </div>
 
     <div class="content grid-center p-20 dis-none" id="verify">
-        <div id="granted" class="align-center">
+        <div id="granted" class="align-center  dis-none">
             <i class="fas fa-check fz-30 grid-center m-auto"></i>
+            <h4 class="clr-green uppercase">Granted</h4>
             <span class="dis-block align-center mt-3 uppercase bolder fz-20 clr-white" id="granted-text">...</span>
         </div>
-        <div id="denied" class="align-center dis-none">
+        <div id="denied" class="align-center">
             <i class="fas fa-x fz-30 grid-center m-auto"></i>
+            <h4 class="clr-red uppercase">DENIED</h4>
             <span class="dis-block align-center mt-3 uppercase bolder fz-20  clr-white" id="granted-text">...</span>
-        </div>
-        <div id="verify-confirm">
-            <input type="text" id="confirm-code">
         </div>
     </div>
 
@@ -169,7 +167,7 @@
         <div class="loaderx grid-center">
             <div class="loader-content relative clr-black br-black">
                 <div class="loader" id="the-loader"></div>
-                <div id="loader-icon" class="dis-none"><i class="align-center fas fa-check fz-40 clr-green"></i></div>
+                <div id="loader-icon" class="dis-none w-100 align-center"><i class="align-center fas fa-check fz-40 clr-green"></i></div>
                 <div class="align-center fz-8 ping-text p-3 pt-2 opacity-0">bendhard16</div>
                 <div class="align-center loader-text fz-12" id="loader-text"></div>
             </div>

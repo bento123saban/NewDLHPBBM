@@ -139,14 +139,11 @@ body {
 
 #scan-warn {
   z-index: 1000;
-  background: radial-gradient(white, #ffffff99);
-  backdrop-filter: blur(4px);
 }
 #sc-warn-box {
-  height: 250px !important;
-  aspect-ratio: 1;
-  border: 4px solid white;
-  
+  background: transparent;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  width: 200px;
 }
 
 
@@ -221,22 +218,18 @@ body {
 #toast {
   font-size: 12px;
   position: absolute;
-  top: 50%;
+  top: -20px;
   left: 50%;
-  transform: translate(-50%, -50%);
-  min-width: 200px;
+  width: 300px;
   padding: 5px 10px;
-  border-radius: 6px;
   text-align: center;
-  z-index: 9999;
   color: white;
-  opacity: 0;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: all 0.3s ease;
   z-index: 100000 !important;
+  transform: translateX(-50%);
 }
 #toast.show {
-  opacity: .9;
-  transform: translateX(-50%) translateY(0);
+  top: 15px;
 }
 #toast.success { background-color: var(--success); }
 #toast.error { background-color: var(--error); }
@@ -247,8 +240,7 @@ body {
 #granted i, #denied i{
     width: 70px;
     aspect-ratio: 1;
-    background: white !important;
-    outline: 3px solid white !important;
+    background: transparent !important;
     outline-offset: 4px;
     border-radius: 1000px;
 }

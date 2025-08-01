@@ -59,11 +59,12 @@ class AppController {
             }); */
             
             
-            setTimeout(() => {
-                if(this.connect.isOnLine()) STATIC.loaderStop('Load setup complete ✅')
-                else STATIC.loaderStop('Bed connection')
+            setTimeout(async() => {
+                if(this.connect.isOnLine()) STATIC.loaderStop(true, 'Load setup complete')
+                else STATIC.loaderStop(false, 'Bed connection')
                 this.connect.pause()
                 this.isStarting = false
+                await STATIC.delay(3000);
                 document.querySelector("#home").classList.remove("dis-none")
             }, 2000);
                 
@@ -98,8 +99,12 @@ class AppController {
 
     }
 
-    _handleFaceFailed() {
-        
+    
+
+    _handleFaceFailed(data) {   
+        STATIC.verifyController({
+
+        })
     }
 
     _handleQRSuccess(code) {
@@ -107,9 +112,7 @@ class AppController {
     }
     
     _handleQRFailed(data) {
-        const verify = STATIC.verifyController({status : data.status, text : data.text})
-        verify.show()
-        TTS.speak(data.speak, "", setTimeout(() => verify.clear(), 2500))
+        
     }
     
 }
@@ -209,24 +212,34 @@ class STATIC {
     static verifyController(data){
         const denied    = document.querySelector("#denied"),
             granted     = document.querySelector("#granted"),
+            deniedHead  = document.querySelector("#denied h4"),
             deniedText  = document.querySelector("#denied-text"),
-            grantedText = document.querySelector("#granted-text")
+            grantedText = document.querySelector("#granted-text"),
+            grantedHead = document.querySelector("#granted h4")
 
         if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
         return {
             show : () => {
                 if (data.status == 'denied') {
-                    denied.classList.remove("dis-none")
+
                     granted.classList.add("dis-none")
-                    grantedText.textContent    = "..."
-                    deniedText.textContent     = data.text
+                    grantedText.textContent = "..."
+                    grantedHead.textContent = "..."
+
+                    denied.classList.remove("dis-none")
+                    deniedText.textContent  = data.text
+                    deniedHead.textContent  = data.head
+
                 } else if (data.status == "granted") {
+
                     denied.classList.add("dis-none")
+                    deniedText.textContent  = "..."
+                    deniedHead.textContent  = "..."
+
                     granted.classList.remove("dis-none")
-                    deniedText.textContent     = "..."
-                    grantedText.textContent    = data.text
-                } else if (data.confirm) {
-                    
+                    grantedText.textContent = data.text
+                    grantedHead.textContent = data.head
+
                 }
             },
             clear : () => {
@@ -235,6 +248,8 @@ class STATIC {
                 granted.classList.add("dis-none")
                 grantedText.textContent    = "..."
                 deniedText.textContent     = "..."
+                grantedHead.textContent    = "..."
+                deniedHead.textContent     = "..."
             }
         }
     }
@@ -269,11 +284,17 @@ class STATIC {
             console.error("[loaderRun] Gagal menampilkan loader :", err);
         }
     }
-    static loaderStop(text = '', delay = 3000) {
+    static loaderStop(status = true, text = '', delay = 3000) {
         document.querySelector('#loader-text').textContent = text
         if (text === '') return document.querySelector("#loader").classList.add('dis-none')
         document.querySelector("#the-loader").classList.add("dis-none");
         document.querySelector("#loader-icon").classList.remove("dis-none");
+
+        document.querySelector("#loader-icon i").classList.toggle("fa-x", !status)
+        document.querySelector("#loader-icon i").classList.toggle("clr-red", !status)
+        document.querySelector("#loader-icon i").classList.toggle("fa-check", status)
+        document.querySelector("#loader-icon i").classList.toggle("clr-green", status)
+        
         setTimeout(() => document.querySelector("#loader").classList.add('dis-none'), delay)
     }
     static count (arr, val) {
@@ -314,9 +335,9 @@ class TTS {
 
 class RequestManager {
     constructor(main) {
-        this.maxRetries         = 1;
-        this.retryDelay         = 600;      // ms
-        this.timeoutMs          = 10000;    // ms
+        this.maxRetries         = 3;
+        this.retryDelay         = 1000;      // ms
+        this.timeoutMs          = 15000;    // ms
         this.deferWhenHidden    = false;
         this.maxHiddenDeferMs   = 4000; 
         this.appCTRL            = main || null;
@@ -336,12 +357,8 @@ class RequestManager {
 
     // ====== PUBLIC ======
     isOnline() {
-        try {
-            if (this.appCTRL && this.appCTRL.connect && typeof this.appCTRL.connect.isOnLine === "function") {
-                return !!this.appCTRL.connect.isOnLine();
-            }
-        } catch (_) {}
-        return (typeof navigator !== "undefined") ? !!navigator.onLine : true;
+        return true
+        this.appCTRL.connect.isOnLine();
     }
 
     _log() { 
@@ -473,32 +490,26 @@ class RequestManager {
         s = s.replace(/\/+$/, "");
         return s;
     }
-
     _requireBaseURL() {
         var u = this.URL;
         if (!u) throw new Error("RequestManager.baseURL belum diset (AppController/baseURL kosong).");
         return u;
     }
-
     _nowMs() {
         try { return (typeof performance !== "undefined" && typeof performance.now === "function") ? performance.now() : Date.now(); }
         catch(_) { return Date.now(); }
     }
-
     _delay(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-
     _makeUUID() {
         try { return (typeof crypto !== "undefined" && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + "-" + Math.random().toString(16).slice(2)); }
         catch(_) { return (Date.now() + "-" + Math.random().toString(16).slice(2)); }
     }
-
     _joinURL(base, p) {
         if (!p) return base;
         if (base.endsWith("/") && p.startsWith("/")) return base + p.slice(1);
         if (!base.endsWith("/") && !p.startsWith("/")) return base + "/" + p;
         return base + p;
     }
-
     _makeResult(confirm, status, httpStatus, errorObj, url, attempt, durationMs, retried, requestId, data) {
         return {
             confirm: !!confirm,
@@ -515,7 +526,6 @@ class RequestManager {
             }
         };
     }
-
     async _smartParseResponse(res) {
         var ct = (res.headers.get("Content-Type") || "").toLowerCase();
         var out = { data: null, errorMessage: null, errorCode: null, raw: null };
@@ -542,12 +552,10 @@ class RequestManager {
         }
         return out;
     }
-
     _shouldRetryHTTP(res) {
         var s = res.status;
         return (s === 408 || s === 425 || s === 429 || (s >= 500 && s <= 599));
     }
-
     _statusFromHttp(s) {
         if (s === 429) return "THROTTLED";
         if (s === 408) return "TIMEOUT";
@@ -555,7 +563,6 @@ class RequestManager {
         if (s >= 400) return "CLIENT_ERROR";
         return "FAILED";
     }
-
     _computeBackoff(attempt, baseDelay, res) {
         var retryAfterMs = 0;
         try {
@@ -569,7 +576,6 @@ class RequestManager {
         var jitter = Math.floor(Math.random() * Math.min(1000, baseDelay));
         return Math.max(retryAfterMs, expo + jitter);
     }
-
     _classifyFetchError(err) {
         var msg = (err && (err.message || "")) || "";
         var name = (err && err.name) || "";
@@ -578,7 +584,6 @@ class RequestManager {
         // Heuristik: kalau online tapi gagal, kemungkinan CORS; kalau offline, network error
         return (typeof navigator !== "undefined" && navigator.onLine) ? "CORS" : "NETWORK_ERROR";
     }
-
     _readableFetchError(err, code) {
         if (code === "TIMEOUT") return "Timeout! Periksa koneksi.";
         if (code === "CORS")    return "Permintaan diblokir oleh kebijakan CORS.";
@@ -586,7 +591,6 @@ class RequestManager {
         if (code === "ABORTED") return "Permintaan dibatalkan.";
         return (err && err.message) || "Terjadi kesalahan jaringan.";
     }
-
     async _waitUntilVisible(ms) {
         if (typeof document === "undefined" || !document.hidden) return;
         return new Promise(function (resolve) {
@@ -597,7 +601,6 @@ class RequestManager {
             document.addEventListener("visibilitychange", onVis, { once: true });
         });
     }
-
     _safeToast(type, msg) {
         try {
             if (!msg) return;
@@ -614,8 +617,10 @@ class QRScanner {
         this.appCTRL            = main
         this.onSuccess          = onSuccess;
         this.onFailed           = onFailed;
+
+        this.maxRequest         = 3
         this.falseCount         = 0;
-        this.maxFalse           = 15
+        this.maxFalse           = 15;
         this.counter            = 60; // 60 detik timeout
 
         this.qrCodeScanner      = null;
@@ -628,26 +633,6 @@ class QRScanner {
         this.scanGuide          = document.querySelector(".scan-guide-line");
         this.scanWarn           = document.querySelector('#scan-warn');
     }
-    
-    async _requestData(code) {
-        STATIC.loaderRun('Request Data')
-        const post =  await this.appCTRL.request.post({
-            type    : 'getDriver',
-            code    : code
-        })
-        
-        //return console.log('POST : ' + post)
-        
-        //if (!post.confirm)
-        
-        if (post.confirm) {
-            this.resume()
-            this.stop()
-            await this.onSuccess(post)
-        }
-        
-    }
-
     async _init() {
         let error = "";
         //STATIC.loaderRun("Load Scanner...");
@@ -678,7 +663,6 @@ class QRScanner {
         }
         if(error != "") throw new Error(error, "error");
     }
-
     async start() {
         if (!this._init()) return
 
@@ -727,7 +711,6 @@ class QRScanner {
             this.restartBtn.onclick = async () => await this.start();
         }
     }
-
     async stop() {
         
         console.log('QR Stop')
@@ -755,7 +738,6 @@ class QRScanner {
         this.isVerify       = false;
         this.falseCount     = 0
     }
-
     async pause() {
         if (this.qrCodeScanner && this.isScanning && !this.isPaused) {
             try {
@@ -768,7 +750,6 @@ class QRScanner {
             }
         }
     }
-
     async resume() {
         if (this.qrCodeScanner && this.isPaused) {
             try {
@@ -781,7 +762,6 @@ class QRScanner {
             }
         }
     }
-
     async _QRVerify(qrText) {
         if (this.isVerify || !qrText || qrText.length <= 10) return;
 
@@ -870,7 +850,28 @@ class QRScanner {
             this.isVerify = false;
         }
     }
+    async _requestData(code) {
+        STATIC.loaderRun('Request Data')
+        const post =  await this.appCTRL.request.post({
+            type    : 'getDriver',
+            code    : code
+        })
 
+        if (!post.confirm) return this._scanWarn({
+            head : "Error :",
+            text : post.error.message
+        })
+        if (post.data.confirm) {
+            
+        }
+        
+    }
+    _scanWarn(data) {
+        document.querySelector("#scan-warn").classList.remove("dis-none")
+        document.querySelector("#scan-warn h4").textContent = data.head
+        document.querySelector("#scan-warn p").textContent = data.text
+        setTimeout(() => document.querySelector("#scan-warn").classList.add("dis-none"), 1000)
+    }
     _blockedQR(qrtext) {
         const blockedData = JSON.parse(localStorage.getItem("bnd-blc") || "[]");
         if (blockedData.includes(qrtext)) return console.warn("QR Code sudah diblokir sebelumnya:", qrtext);
@@ -878,7 +879,6 @@ class QRScanner {
         localStorage.setItem("bnd-blc", JSON.stringify(blockedData))
         //return true
     }
-
     _startCountdown() {
         this._updateCountdownDisplay();
         if (this.countdownInterval) clearInterval(this.countdownInterval);
@@ -901,26 +901,21 @@ class QRScanner {
             }
         }, 1000);
     }
-
     _clearCountdown() {
         if (this.countdownInterval) clearInterval(this.countdownInterval);
         if (this.counterEl) this.counterEl.innerText = "";
     }
-
     _updateCountdownDisplay() {
         if (this.counterEl) this.counterEl.innerText = `${this.timeoutCounter}s`;
     }
-
     _showElement(el) {
         if (!el) return;
         el.classList.remove("hidden", "dis-none");
     }
-
     _hideElement(el) {
         if (!el) return;
         el.classList.add("dis-none");
     }
-
     _errorUI(head, text, ) {
         
     }
@@ -1476,9 +1471,10 @@ class IndexedDBController {
 
 window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
-    //const app = new AppController()
-    //await app._init();
-    //await app.qrScanner._requestData("X-016")
+    //return
+    const app = new AppController()
+    await app._init();
+    await app.qrScanner._requestData("X-016")
     
     const videos = document.querySelectorAll("video");
     /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{
