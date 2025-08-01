@@ -103,6 +103,8 @@ class AppController {
 
     _handleFaceFailed(data) {   
         STATIC.verifyController({
+            status : "denied",
+
 
         })
     }
@@ -858,12 +860,13 @@ class QRScanner {
         })
 
         if (!post.confirm) return this._scanWarn({
-            head : "Error :",
-            text : post.error.message
+            head    : "Error :",
+            text    : post.error.message
         })
-        if (post.data.confirm) {
-            
-        }
+        if (!post.data.confirm) return this.onFailed({
+            head    : grantedHead,
+            text    :2
+        })  
         
     }
     _scanWarn(data) {
