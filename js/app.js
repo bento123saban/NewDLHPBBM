@@ -274,7 +274,7 @@ class STATIC {
         if (text === '') return document.querySelector("#loader").classList.add('dis-none')
         document.querySelector("#the-loader").classList.add("dis-none");
         document.querySelector("#loader-icon").classList.remove("dis-none");
-        setTimeout(() => document.querySelector("#loader").classList.add('off'), delay)
+        setTimeout(() => document.querySelector("#loader").classList.add('dis-none'), delay)
     }
     static count (arr, val) {
         return arr.filter(v => v == val).length
@@ -314,7 +314,7 @@ class TTS {
 
 class RequestManager {
     constructor(main) {
-        this.maxRetries         = 3;
+        this.maxRetries         = 1;
         this.retryDelay         = 600;      // ms
         this.timeoutMs          = 10000;    // ms
         this.deferWhenHidden    = false;
@@ -626,26 +626,31 @@ class QRScanner {
         this.restartBtn         = document.getElementById("restart-scan-btn");
         this.counterEl          = document.getElementById("cams-timeout-counter");
         this.scanGuide          = document.querySelector(".scan-guide-line");
+        this.scanWarn           = document.querySelector('#scan-warn');
     }
     
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
-        this.stop()
         const post =  await this.appCTRL.request.post({
-            action  : 'getDriver',
+            type    : 'getDriver',
             code    : code
         })
-        console.log(post)
-
-        if (post.confirm) return await this.onSuccess(post)
-
-    
+        
+        //return console.log('POST : ' + post)
+        
+        //if (!post.confirm)
+        
+        if (post.confirm) {
+            this.resume()
+            this.stop()
+            await this.onSuccess(post)
+        }
         
     }
 
     async _init() {
         let error = "";
-        STATIC.loaderRun("Load Scanner...");
+        //STATIC.loaderRun("Load Scanner...");
         try {
             if (typeof Html5Qrcode === "undefined") throw new Error("Library QR belum dimuat : html5qrcode-not-found", "error")
             this.qrCodeScanner = new Html5Qrcode("qr-reader", {
@@ -668,6 +673,8 @@ class QRScanner {
         } catch (err) {
             error = "QRScanner init error: " + err.message;
             param = false
+        } finally {
+           // STATIC.loaderStop('  ')
         }
         if(error != "") throw new Error(error, "error");
     }
@@ -722,7 +729,8 @@ class QRScanner {
     }
 
     async stop() {
-        if(this.isVerify) return
+        
+        console.log('QR Stop')
 
         this._clearCountdown();
 
@@ -779,7 +787,6 @@ class QRScanner {
 
         this.isVerify = true;
         
-        console.log(qrText)
         //return
         /*
         const blockedQR = JSON.parse(localStorage.getItem("bnd-blc"))
@@ -833,9 +840,8 @@ class QRScanner {
                 this.falseCount ++
                 throw new Error('Code tidak ditemukan atau invalid')
             }
-            
+            this.isVerify = false
             clearTimeout(timeout);
-            this.stop(); // stop QRScanner
             const success = await this._requestData(qrData.code)
             return console.log("QR Bendhard16")
 
@@ -843,6 +849,8 @@ class QRScanner {
             console.error("❌ Error verifikasi QR:", err.message);
             STATIC.toast(err.message || "QR tidak valid", "error");
             this.falseCount ++
+            this.resume()
+            this._startCountdown()      
         } finally {
             /*
             if(this.falseCount === 15) return TTS.speak("QR Code diblokir. Hubungi admin untuk konfirmasi lebih lanjut.",
@@ -853,15 +861,13 @@ class QRScanner {
                     STATIC.verifyController()
                 }
             ) */
-            if(this.falseCount % 5 === 0) return TTS.speak("QR Code gagal di verifikasi. Posisikan dengan benar, pastikan dapat terlihat dengan jelas di Kamera. jang terlalu jau dan jangan terlalu dekat. Bersihakan kartu QR Code pastikan tidak ada noda. Jika sudah silahkan coba lagi.",
+            if (this.falseCount % 5 === 0) return TTS.speak("QR Code gagal di verifikasi. Posisikan dengan benar, pastikan dapat terlihat dengan jelas di Kamera. jang terlalu jau dan jangan terlalu dekat. Bersihakan kartu QR Code pastikan tidak ada noda. Jika sudah silahkan coba lagi.",
                 "",
                 () => {
                     this.isVerify = false;
                     this.resume()
                 })
             this.isVerify = false;
-            this.resume()
-            this._startCountdown()
         }
     }
 
@@ -915,7 +921,7 @@ class QRScanner {
         el.classList.add("dis-none");
     }
 
-    _retryControl () {
+    _errorUI(head, text, ) {
         
     }
     
@@ -1469,12 +1475,10 @@ class IndexedDBController {
 
 
 window.addEventListener("DOMContentLoaded", async () => {
-    STATIC.loaderRun('Connecting...')
-    const app = new AppController()
-    await app._init();
-    await app.qrScanner._requestData("X-016")
-
-    
+    //STATIC.loaderRun('Connecting...')
+    //const app = new AppController()
+    //await app._init();
+    //await app.qrScanner._requestData("X-016")
     
     const videos = document.querySelectorAll("video");
     /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{

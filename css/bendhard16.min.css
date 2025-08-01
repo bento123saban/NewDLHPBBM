@@ -157,6 +157,7 @@ input::-webkit-inner-spin-button {
 .w-300 {width: 300% !important;}
 .w-200 {width: 200% !important;}
 .w-100 {width: 100% !important;}
+.w-80 {width: 80% !important;}
 .w-50 {width: 50% !important;}
 .w-30 {width: 30% !important;}
 .vw-100 {width: 100vw;}
@@ -494,15 +495,14 @@ input::-webkit-inner-spin-button {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    width: 100vw;
+    height: 100vh;
     backdrop-filter: blur(3px);
     background: radial-gradient(white, transparent);
-    z-index: 10000;
+    z-index: 1000;
     transition: all .4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-#loader.off {
-    top: 100%;
+#loader {
 }
 .loaders {
     position: absolute;

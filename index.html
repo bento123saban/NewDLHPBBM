@@ -47,7 +47,7 @@
         <button class="borad-5 transparent clr-white bolder p-10 br-none pointer" id="start"><i class="fas fa-qrcode fz-40"></i></button>
     </div>
 
-    <div class="content grid-center p-20 hidden relative dis-none" id="scan" >
+    <div class="content grid-center p-20 hidden relative" id="scan" >
         <div id="camera-content" class="relative hidden">
             <h1 class="absolute-top align-center w-100 p-30 clr-white" id="scan-head">QR Code Scanner</h1>
             <span class="dis-block align-center fz-10 bolder clr-white" id="cams-timeout-counter">Counter</span>
@@ -64,7 +64,13 @@
                 <div class="line ln3"></div>
                 <div class="line ln4"></div>
             </div>
-            <div id="scan-warn"></div>
+            <div id="scan-warn" class="absolute-top grid-center w-100 h-100">
+                <div class="align-center white p-15 borad-5" id="sc-warn-box">
+                    <i class="fas fa-circle-exclamation fz-40"></i>
+                    <h4>Warn Header</h4>
+                    <p class="align-justify w-80 red">Lorem ipsum dolor sit amet</p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -159,7 +165,7 @@
         </div>
     </div>
 
-    <div class="content" id="loader">
+    <div class="content dis-none" id="loader">
         <div class="loaderx grid-center">
             <div class="loader-content relative clr-black br-black">
                 <div class="loader" id="the-loader"></div>
