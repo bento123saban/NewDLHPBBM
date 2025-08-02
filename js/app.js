@@ -25,7 +25,7 @@ class AppController {
                 }
             });
 
-            await STATIC.delay(1000, await this.connect.start())
+            await STATIC.delay(500, async () =>{ await this.connect.start()})
             //await this.face._init()
             //await new Promise(resolve => setTimeout(resolve, 1000));
             
@@ -57,24 +57,19 @@ class AppController {
                 }
             }); */
             
-            document.querySelector("#home").classList.remove("dis-none")
-            
-            setTimeout(async() => {
-                if(this.connect.isOnLine()) STATIC.loaderStop()
-                else STATIC.loaderStop({
-                    status      : false,
-                    text        : "OFFLINE",
-                    callback    : () => {
-                        STATIC.isOnlineUI(() => {
+            STATIC.delay(1500, async() => {
+                STATIC.loaderStop(() => {
+                    STATIC.isOnlineUI(async () => {
+                        await STATIC.delay(5000, () => {
                             document.querySelector("#network").classList.add("dis-none")
                             document.querySelector("#network i").className = ""
+                            STATIC.changeContent("home")
                         })
-                    },
-                    delay : 0
+                    })
                 })
                 this.connect.pause()
                 this.isStarting = false
-            }, 2000);
+            });
                 
             let ttsUnlocked = false;
             document.querySelector("#start").onclick = () => {
@@ -95,7 +90,7 @@ class AppController {
         STATIC.changeContent("scan");
         await this.qrScanner.start();
         await STATIC.delay(3000)
-        await this.qrScanner._requestData("X-016");
+        await this.qrScanner._requestData("X-001");
     }
     stop() {
         this.qrScanner.stop();
@@ -115,12 +110,16 @@ class AppController {
        
     }
     _handleQRFailed(data) {
+        console.log("QR Failed")
         const verify = STATIC.verifyController({
             status  : "denied",
             head    : data.head,
             text    : data.text
         })
-        verify.show()
+        verify.show(() => STATIC.delay(10000, () => {
+            verify.clear("scan")
+            this.qrScanner.start()
+        }))
     }
 }
 
@@ -217,45 +216,29 @@ class connection {
 
 class STATIC {
     static verifyController(data){
-        const denied    = document.querySelector("#denied"),
-            granted     = document.querySelector("#granted"),
-            deniedHead  = document.querySelector("#denied h4"),
-            deniedText  = document.querySelector("#denied-text"),
-            grantedText = document.querySelector("#granted-text"),
-            grantedHead = document.querySelector("#granted h4")        
         return {
-            show : () => {
-                if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
+            show : (callback = "") => {
+                STATIC.changeContent("verify")
+                document.querySelector("#verify h4").textContent = data.head
+                document.querySelector("#verify span").textContent = data.text
                 if (data.status == 'denied') {
-
-                    granted.classList.add("dis-none")
-                    grantedText.textContent = "..."
-                    grantedHead.textContent = "..."
-
-                    denied.classList.remove("dis-none")
-                    deniedText.textContent  = data.text
-                    deniedHead.textContent  = data.head
-
-                } else if (data.status == "granted") {
-
-                    denied.classList.add("dis-none")
-                    deniedText.textContent  = "..."
-                    deniedHead.textContent  = "..."
-
-                    granted.classList.remove("dis-none")
-                    grantedText.textContent = data.text
-                    grantedHead.textContent = data.head
-
+                    document.querySelector("#verify i").className = "fas fa-x fz-30 grid-center m-auto"
+                    document.querySelector("#verify-data").className = "red align-center"
                 }
+                else {
+                    document.querySelector("#verify i").className = "fas fa-check fz-30 grid-center m-auto"
+                    document.querySelector("#verify-data").className = "green align-center"
+                }
+                if(typeof callback === "function") callback()
             },
-            clear : () => {
-                //STATIC.changeContent(data.next)
-                denied.classList.add("dis-none")
-                granted.classList.add("dis-none")
-                grantedText.textContent    = "..."
-                deniedText.textContent     = "..."
-                grantedHead.textContent    = "..."
-                deniedHead.textContent     = "..."
+            clear : (callback = "") => {
+                document.querySelector("#verify").classList.add("dis-none")
+                document.querySelector("#verify h4").textContent = ""
+                document.querySelector("#verify span").textContent = ""
+                document.querySelector("#verify i").className = ""
+                
+                if(typeof callback === "function") callback()
+                else if (typeof callback === "string") this.changeContent(callback)
             }
         }
     }
@@ -277,12 +260,8 @@ class STATIC {
         }, 3000);
     }
     static async delay (ms, callback = "") {
-        return new Promise(resolve => {
-            setTimeout(() => {
-                if(typeof callback === "function") return callback()
-                resolve
-            }, ms)}
-        );
+        await new Promise(resolve => setTimeout(resolve, ms))
+        if(typeof callback === "function") return callback()
     }
     static loaderRun(text = 'Sending Request', speak = false) {
         try {
@@ -296,17 +275,26 @@ class STATIC {
         }
     }
     static loaderStop(callback = "") {
+        document.querySelector("#loader").classList.add("dis-none")
         document.querySelector('#loader-text').textContent = ""
         if (typeof callback === "function") return callback()
     }
     static count (arr, val) {
         return arr.filter(v => v == val).length
     }
-    static isOnlineUI(callback = undefined){
+    static isOnlineUI(callback = ""){
         const online = localStorage.getItem("connection")
+        console.log(online)
         document.querySelector("#network").classList.remove("dis-none")
-        if(online) document.querySelector("#network-icon i").className = "fas fa-wifi fz-40 relative network-icon clr-green br-green online-icon"
-        else document.querySelector("#network-icon i").className = "fas fa-wifi fz-40 relative network-icon clr-red br-red offline-icon"
+        if(online == "true") {
+            document.querySelector("#network i").className = "fas fa-wifi fz-40 relative network-icon clr-green br-green online-icon"
+            document.querySelector("#network span").textContent = "ONLINE"
+            document.querySelector("#network span").className = "dis-block align-center clr-green mt-3 bolder"
+        } else {
+            document.querySelector("#network i").className = "fas fa-wifi fz-40 relative network-icon clr-red br-red offline-icon"
+            document.querySelector("#network span").textContent = "OFFLINE"
+            document.querySelector("#network span").className = "dis-block align-center clr-red mt-3 bolder"
+        }
         if (typeof callback === "function") return callback()
         return setTimeout(() => {
             document.querySelector("#network").classList.add("dis-none")
@@ -600,7 +588,7 @@ class RequestManager {
     _readableFetchError(err, code) {
         if (code === "TIMEOUT") return "Timeout! Periksa koneksi.";
         if (code === "CORS")    return "Permintaan diblokir oleh kebijakan CORS.";
-        if (code === "NETWORK_ERROR") return "Jaringan error. Cek koneksi atau VPN.";
+        if (code === "NETWORK_ERROR") return "Jaringan error. Cek koneksi.";
         if (code === "ABORTED") return "Permintaan dibatalkan.";
         return (err && err.message) || "Terjadi kesalahan jaringan.";
     }
@@ -659,6 +647,7 @@ class QRScanner {
             this._hideElement(this.regionEl);
             this._hideElement(this.restartBtn);
             this._hideElement(this.scanGuide);
+            this._hideElement(this.scanWarn);
             this._clearCountdown();
 
             this.isScanning = false;
@@ -864,36 +853,28 @@ class QRScanner {
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
         this.stop()
-        console.log("Start request")
         const post =  await this.appCTRL.request.post({
             type    : 'getDriver',
             code    : code
         })
-        console.log("End request", post.data.confirm)
         STATIC.loaderStop()
-        if (!post.confirm) {
-            this._scanWarn({
-                head    : "Error :",
-                text    : post.error.message
-            }, 3000)
-            
-            console.log("No request")
-            return this.start()
-        }
-        else if (!post.data.confirm) this.onFailed({
+        if (!post.confirm) return await this._scanWarn({
+            head    : post.error.code,
+            text    : post.error.message
+        }, 5000)
+        else if (!post.data.confirm) return this.onFailed({
             head    : post.data.status,
             text    : post.data.msg,
             data    : post
         })
-        else if (post.data.confirm) this.onSuccess(post)
-        console.log("End QR")
+        else if (post.data.confirm) return this.onSuccess(post)
     }
     async _scanWarn(data, timeout = 2500) {
-        document.querySelector("#scan-warn").classList.remove("dis-none")
-        document.querySelector("#scan-warn h54").textContent = data.head
-        document.querySelector("#scan-warn p").textContent = data.text
-        await STATIC.delay(timeout)
-        document.querySelector("#scan-warn").classList.add("dis-none")
+        TTS.speak(data.text, () => {
+            this._showElement(this.scanWarn)
+            document.querySelector("#scan-warn h5").textContent = data.head
+            document.querySelector("#scan-warn p").textContent = data.text
+        }, async () => await STATIC.delay(timeout, () => this.start()))
     }
     _blockedQR(qrtext) {
         const blockedData = JSON.parse(localStorage.getItem("bnd-blc") || "[]");

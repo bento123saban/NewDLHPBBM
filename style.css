@@ -139,6 +139,7 @@ body {
 
 #scan-warn {
   z-index: 1000;
+  backdrop-filter: blur(5px);
 }
 #sc-warn-box {
   background: transparent;
@@ -237,26 +238,28 @@ body {
 #toast.info { background-color: var(--info); }
 
 
-#granted i, #denied i{
-    width: 70px;
-    aspect-ratio: 1;
-    background: transparent !important;
-    outline-offset: 4px;
-    border-radius: 1000px;
-}
-#granted i {
-    color: lime;
-    border: 3px solid lime;
-}
-#denied i {
-    color: red;
-    border: 3px solid red;
-}
-#verify-confirm {
-  position: absolute;
-  bottom: 70px;
+#verify div {
   width: 200px;
+  padding: 30px 10px;
+  border-radius: 7px;
 }
+#verify h4 {
+  padding-top: 10px !important;
+  width: 50%;
+  margin: 10px auto !important;
+}
+#verify i{
+  width: 70px;
+  aspect-ratio: 1;
+  background: transparent !important;
+  border-radius: 1000px;
+  border: 4px solid white;
+}
+#verify span {
+  display: block;
+  width: 100%;
+}
+
 
 #network {
   position: fixed;
@@ -264,7 +267,7 @@ body {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: radial-gradient(white, #ffffff90);
+  background: black;
   z-index: 100000000;
   backdrop-filter: blur(4px);
 }
@@ -273,7 +276,7 @@ body {
   scale: 1;
   border: 7px solid;
   border-radius: 10000px;
-  width: 80px;
+  width: 110px;
   aspect-ratio: 1;
   display: grid !important;
   place-items: center !important;
@@ -281,27 +284,30 @@ body {
 
 .network-icon::after {
   position: absolute;
-  top: 13px;
+  top: 25px;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-49%, -50%);
   color: inherit;
   font-size: 14px !important;
-  border: 3px solid inherit;
-  border-radius: 100px;
-  width: 23px;
+  font-weight: bolder;
+  border: 3.5px solid;
+  border-color:  inherit;
+  border-radius: 10000000px;
+  width: 20px;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: #fff;
+  background: #000;
   font-weight: bolder;
-  padding-top: 2px;
 }
-.offline-icon::after {
-  content: 'x';
-}
+
 .online-icon::after {
   content: '✓';
 }
+.offline-icon::after {
+  content: "x";
+}
+
 
 #face-vid-box {
     width: 100%;
