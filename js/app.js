@@ -10,7 +10,6 @@ class AppController {
         this.startAll   = false;
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?";
     }
-    
     async _init () {
         this.isStarting = true
         try {
@@ -58,6 +57,7 @@ class AppController {
                 }
             }); */
             
+            document.querySelector("#home").classList.remove("dis-none")
             
             setTimeout(async() => {
                 if(this.connect.isOnLine()) STATIC.loaderStop(true, 'Load setup complete')
@@ -65,7 +65,6 @@ class AppController {
                 this.connect.pause()
                 this.isStarting = false
                 await STATIC.delay(3000);
-                document.querySelector("#home").classList.remove("dis-none")
             }, 2000);
                 
             let ttsUnlocked = false;
@@ -82,41 +81,38 @@ class AppController {
             this.isStarting = false
         }
     }
-
     async start() {
         this.startAll = true
         STATIC.changeContent("scan");
-        this.qrScanner.start();
+        await this.qrScanner.start();
+        await STATIC.delay(3000)
+        await this.qrScanner._requestData("X-016");
     }
-
     stop() {
         this.qrScanner.stop();
         this.face.stop()
         this.connect.pause()
     }
-
     _handleFaceSuccess() {
 
     }
-
-    
-
-    _handleFaceFailed(data) {   
+    _handleFaceFailed(data) {
         STATIC.verifyController({
             status : "denied",
 
-
         })
     }
-
     _handleQRSuccess(code) {
        
     }
-    
     _handleQRFailed(data) {
-        
+        const verify = STATIC.verifyController({
+            status  : "denied",
+            head    : data.head,
+            text    : data.text
+        })
+        verify.show()
     }
-    
 }
 
 class connection {
@@ -217,11 +213,10 @@ class STATIC {
             deniedHead  = document.querySelector("#denied h4"),
             deniedText  = document.querySelector("#denied-text"),
             grantedText = document.querySelector("#granted-text"),
-            grantedHead = document.querySelector("#granted h4")
-
-        if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
+            grantedHead = document.querySelector("#granted h4")        
         return {
             show : () => {
+                if(!STATIC.changeContent("verify")) return console.warn(`Verify content not found.`)
                 if (data.status == 'denied') {
 
                     granted.classList.add("dis-none")
@@ -245,7 +240,7 @@ class STATIC {
                 }
             },
             clear : () => {
-                STATIC.changeContent('scan')
+                //STATIC.changeContent(data.next)
                 denied.classList.add("dis-none")
                 granted.classList.add("dis-none")
                 grantedText.textContent    = "..."
@@ -291,16 +286,24 @@ class STATIC {
         if (text === '') return document.querySelector("#loader").classList.add('dis-none')
         document.querySelector("#the-loader").classList.add("dis-none");
         document.querySelector("#loader-icon").classList.remove("dis-none");
-
-        document.querySelector("#loader-icon i").classList.toggle("fa-x", !status)
-        document.querySelector("#loader-icon i").classList.toggle("clr-red", !status)
-        document.querySelector("#loader-icon i").classList.toggle("fa-check", status)
-        document.querySelector("#loader-icon i").classList.toggle("clr-green", status)
         
+        if(status) document.querySelector("#loader-icon i").className = "fas fa-check fz-40 relative network-icon clr-green br-green"
+        else document.querySelector("#loader-icon i").className = "fas fa-x fz-40 relative network-icon clr-red br-red"
         setTimeout(() => document.querySelector("#loader").classList.add('dis-none'), delay)
     }
     static count (arr, val) {
         return arr.filter(v => v == val).length
+    }
+    static isOnlineUI(callback = undefined){
+        const online = localStorage.getItem("connection")
+        document.querySelector("#network").classList.remove("dis-none")
+        if(online) document.querySelector("#network-icon i").className = "fas fa-wifi fz-40 relative network-icon clr-green br-green online-icon"
+        else document.querySelector("#network-icon i").className = "fas fa-wifi fz-40 relative network-icon clr-red br-red offline-icon"
+        if (typeof callback === "function") return callback()
+        return setTimeout(() => {
+            document.querySelector("#network").classList.add("dis-none")
+            document.querySelector("#network i").className = ""
+        })
     }
 }
 
@@ -643,7 +646,7 @@ class QRScanner {
             this.qrCodeScanner = new Html5Qrcode("qr-reader", {
                 formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
             });
-            if (!this.regionEl || !this.restartBtn || !this.counterEl || !this.scanGuide) throw new Error("Elemen tidak ditemukan. Pastikan semua elemen ada di halaman.");
+            if (!this.regionEl || !this.restartBtn || !this.counterEl || !this.scanGuide) throw new Error("QR Elemen tidak ditemukan. Pastikan semua elemen ada di halaman.");
             
             this._hideElement(this.regionEl);
             this._hideElement(this.restartBtn);
@@ -658,12 +661,12 @@ class QRScanner {
         
             return true
         } catch (err) {
-            error = "QRScanner init error: " + err.message;
-            param = false
-        } finally {
-           // STATIC.loaderStop('  ')
+            this._scanWarn({
+                head : "Init error",
+                text : err.message
+            })
+            return false
         }
-        if(error != "") throw new Error(error, "error");
     }
     async start() {
         if (!this._init()) return
@@ -696,6 +699,7 @@ class QRScanner {
                 },
                 async (decodedText) => {
                     this.pause()
+                    this._clearCountdown()
                     await this._QRVerify(decodedText)
                 },
                 () => {
@@ -766,10 +770,7 @@ class QRScanner {
     }
     async _QRVerify(qrText) {
         if (this.isVerify || !qrText || qrText.length <= 10) return;
-
         this.isVerify = true;
-        
-        //return
         /*
         const blockedQR = JSON.parse(localStorage.getItem("bnd-blc"))
         if  (blockedQR.includes(qrText)) {
@@ -780,18 +781,15 @@ class QRScanner {
                 speak   : 'QR Code telah terblokir. Hubungi admin untuk melepas blokir'
             })
         } */
-
         STATIC.toast("Verifikasi QR", "info")
-
         let timeout = null;
-
         try {
             timeout = setTimeout(() => {
                 return TTS.speak("Verifikasi gagal, silahkan coba lagi", () => {
                     STATIC.toast("Timeout verifikasi QR", "error")
                     this.isVerify = false;
                 });
-            }, 10000); // 10 detik max proses
+            }, 5000); // 10 detik max proses
 
             // 🚫 Empty/null/undefined check
             if (!qrText || typeof qrText !== "string") return console.warn("QR kosong atau bukan string.");
@@ -824,15 +822,18 @@ class QRScanner {
             }
             this.isVerify = false
             clearTimeout(timeout);
+            this.resume()
             const success = await this._requestData(qrData.code)
-            return console.log("QR Bendhard16")
-
         } catch (err) {
             console.error("❌ Error verifikasi QR:", err.message);
-            STATIC.toast(err.message || "QR tidak valid", "error");
+            await this._scanWarn({
+                head : "Error verifikasi QR",
+                text : err.message || "QR tidak valid"
+            })
             this.falseCount ++
             this.resume()
-            this._startCountdown()      
+            this._startCountdown() 
+            this.isVerify = false;
         } finally {
             /*
             if(this.falseCount === 15) return TTS.speak("QR Code diblokir. Hubungi admin untuk konfirmasi lebih lanjut.",
@@ -842,38 +843,49 @@ class QRScanner {
                     this.isVerify = false;
                     STATIC.verifyController()
                 }
-            ) */
+            ) *
             if (this.falseCount % 5 === 0) return TTS.speak("QR Code gagal di verifikasi. Posisikan dengan benar, pastikan dapat terlihat dengan jelas di Kamera. jang terlalu jau dan jangan terlalu dekat. Bersihakan kartu QR Code pastikan tidak ada noda. Jika sudah silahkan coba lagi.",
                 "",
                 () => {
                     this.isVerify = false;
                     this.resume()
                 })
-            this.isVerify = false;
+            this.isVerify = false;*/
         }
     }
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
+        this.stop()
+        console.log("Start request")
         const post =  await this.appCTRL.request.post({
             type    : 'getDriver',
             code    : code
         })
-
-        if (!post.confirm) return this._scanWarn({
-            head    : "Error :",
-            text    : post.error.message
+        console.log("End request", post.data.confirm)
+        STATIC.loaderStop()
+        if (!post.confirm) {
+            this._scanWarn({
+                head    : "Error :",
+                text    : post.error.message
+            }, 3000)
+            
+            console.log("No request")
+            return this.start()
+        }
+        else if (!post.data.confirm) this.onFailed({
+            head    : post.data.status,
+            text    : post.data.msg,
+            data    : post
         })
-        if (!post.data.confirm) return this.onFailed({
-            head    : grantedHead,
-            text    :2
-        })  
-        
+        else if (post.data.confirm) this.onSuccess(post)
+        console.log("End QR")
     }
-    _scanWarn(data) {
+    async _scanWarn(data, timeout = 2500) {
         document.querySelector("#scan-warn").classList.remove("dis-none")
-        document.querySelector("#scan-warn h4").textContent = data.head
+        document.querySelector("#scan-warn h54").textContent = data.head
         document.querySelector("#scan-warn p").textContent = data.text
-        setTimeout(() => document.querySelector("#scan-warn").classList.add("dis-none"), 1000)
+        await STATIC.delay(timeout)
+        document.querySelector("#scan-warn").classList.add("dis-none")
     }
     _blockedQR(qrtext) {
         const blockedData = JSON.parse(localStorage.getItem("bnd-blc") || "[]");
@@ -1475,9 +1487,8 @@ class IndexedDBController {
 window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
     //return
-    const app = new AppController()
+    var app = new AppController()
     await app._init();
-    await app.qrScanner._requestData("X-016")
     
     const videos = document.querySelectorAll("video");
     /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{

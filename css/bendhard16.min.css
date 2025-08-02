@@ -356,7 +356,7 @@ input::-webkit-inner-spin-button {
 .br-instal, .br-yellow {border-color: #FFD700 !important;}
 
 .past, .black, [data-bg="black"] {
-    background: linear-gradient(45deg, #777, black) !important;
+    background: linear-gradient(45deg, #000, black) !important;
     color: white !important;
     border: none !important;
 }
@@ -498,7 +498,7 @@ input::-webkit-inner-spin-button {
     width: 100vw;
     height: 100vh;
     backdrop-filter: blur(3px);
-    background: radial-gradient(white, transparent);
+    background-color: #000;
     z-index: 1000;
     transition: all .4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
@@ -521,7 +521,7 @@ input::-webkit-inner-spin-button {
     width: 50px;
     aspect-ratio: 1;
     display: grid;
-    border: 4px solid #0000;
+    border: 4px solid #fff;
     border-radius: 50%;
     border-right-color: inherit;
     animation: l15 1s infinite linear;
@@ -532,6 +532,7 @@ input::-webkit-inner-spin-button {
     left: 50%;
     transform: translateX(-50%);
     width: 200px;
+    color: white;
 }
 .loader::before,
 .loader::after {    

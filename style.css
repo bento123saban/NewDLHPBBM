@@ -269,29 +269,37 @@ body {
   backdrop-filter: blur(4px);
 }
 
-#network-icon {scale: 2;}
+.network-icon {
+  scale: 1;
+  border: 7px solid;
+  border-radius: 10000px;
+  width: 80px;
+  aspect-ratio: 1;
+  display: grid !important;
+  place-items: center !important;
+}
 
 .network-icon::after {
   position: absolute;
-  top: 0;
+  top: 13px;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: black;
-  font-size: 10px !important;
-  border: 3px solid black;
+  color: inherit;
+  font-size: 14px !important;
+  border: 3px solid inherit;
   border-radius: 100px;
-  width: 20px;
+  width: 23px;
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  background: #ddd;
+  background: #fff;
   font-weight: bolder;
   padding-top: 2px;
 }
-#offline-icon::after {
+.offline-icon::after {
   content: 'x';
 }
-#online-icon::after {
+.online-icon::after {
   content: '✓';
 }
 

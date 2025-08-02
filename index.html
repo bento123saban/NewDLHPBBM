@@ -47,7 +47,7 @@
         <button class="borad-5 transparent clr-white bolder p-10 br-none pointer" id="start"><i class="fas fa-qrcode fz-40"></i></button>
     </div>
 
-    <div class="content grid-center p-20 hidden relative" id="scan" >
+    <div class="content grid-center p-20 hidden relative dis-none" id="scan" >
         <div id="camera-content" class="relative hidden">
             <h1 class="absolute-top align-center w-100 p-30 clr-white" id="scan-head">QR Code Scanner</h1>
             <span class="dis-block align-center fz-10 bolder clr-white" id="cams-timeout-counter">Counter</span>
@@ -64,7 +64,7 @@
                 <div class="line ln3"></div>
                 <div class="line ln4"></div>
             </div>
-            <div id="scan-warn" class="absolute-top grid-center w-100 h-100 ">
+            <div id="scan-warn" class="absolute-top grid-center w-100 h-100 dis-none">
                 <div class="align-center white p-0 borad-5 hidden " id="sc-warn-box">
                     <h5 class="m-0 p-10 red align-center">Warn Header</h5>
                     <p class="align-center clr-white p-10 bolder m-0 fz-12">Lorem ipsum dolor sit amet</p>
@@ -167,21 +167,17 @@
         <div class="loaderx grid-center">
             <div class="loader-content relative clr-black br-black">
                 <div class="loader" id="the-loader"></div>
-                <div id="loader-icon" class="dis-none w-100 align-center"><i class="align-center fas fa-check fz-40 clr-green"></i></div>
+                <div id="loader-icon" class="flex-center gap-20 w-100 align-center">
+                    <i class=""></i>
+                </div>
                 <div class="align-center fz-8 ping-text p-3 pt-2 opacity-0">bendhard16</div>
                 <div class="align-center loader-text fz-12" id="loader-text"></div>
             </div>
         </div>
     </div>
 
-    <div class="grid-center clr-black vw-100 vh-100 dis-none" id="network">
-        <div class="align-center" id="offline">
-            <i class="fas fa-wifi fz-40 relative network-icon" id="offline-icon"></i><br><span>OFFLINE</span>
-            <div class="offline- fz-8 mt-2 dis-none" id="connecting">
-                <i class="fas fa-circle-notch fa-spin"></i><br>
-                Menghubungkan ke jaringan...
-            </div>
-        </div>
+    <div class="content" id="netwotk">
+        <i></i>
     </div>
 
     <div id="toast" class="">Toast text</div>
