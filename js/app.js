@@ -25,10 +25,10 @@ class AppController {
                 }
             });
 
-            //await new Promise(resolve => setTimeout(resolve, 1000));
+            await STATIC.delay(1000, await this.connect.start())
             //await this.face._init()
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await this.connect.start()
+            //await new Promise(resolve => setTimeout(resolve, 1000));
+            
             //await new Promise(resolve => setTimeout(resolve, 1000));
             /* await this.DB.init({
                 drivers : {
@@ -60,11 +60,20 @@ class AppController {
             document.querySelector("#home").classList.remove("dis-none")
             
             setTimeout(async() => {
-                if(this.connect.isOnLine()) STATIC.loaderStop(true, 'Load setup complete')
-                else STATIC.loaderStop(false, 'Bed connection')
+                if(this.connect.isOnLine()) STATIC.loaderStop()
+                else STATIC.loaderStop({
+                    status      : false,
+                    text        : "OFFLINE",
+                    callback    : () => {
+                        STATIC.isOnlineUI(() => {
+                            document.querySelector("#network").classList.add("dis-none")
+                            document.querySelector("#network i").className = ""
+                        })
+                    },
+                    delay : 0
+                })
                 this.connect.pause()
                 this.isStarting = false
-                await STATIC.delay(3000);
             }, 2000);
                 
             let ttsUnlocked = false;
@@ -267,8 +276,13 @@ class STATIC {
             toastEl.classList.remove(`show`, `${type}`);
         }, 3000);
     }
-    static delay (ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
+    static async delay (ms, callback = "") {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                if(typeof callback === "function") return callback()
+                resolve
+            }, ms)}
+        );
     }
     static loaderRun(text = 'Sending Request', speak = false) {
         try {
@@ -281,15 +295,9 @@ class STATIC {
             console.error("[loaderRun] Gagal menampilkan loader :", err);
         }
     }
-    static loaderStop(status = true, text = '', delay = 3000) {
-        document.querySelector('#loader-text').textContent = text
-        if (text === '') return document.querySelector("#loader").classList.add('dis-none')
-        document.querySelector("#the-loader").classList.add("dis-none");
-        document.querySelector("#loader-icon").classList.remove("dis-none");
-        
-        if(status) document.querySelector("#loader-icon i").className = "fas fa-check fz-40 relative network-icon clr-green br-green"
-        else document.querySelector("#loader-icon i").className = "fas fa-x fz-40 relative network-icon clr-red br-red"
-        setTimeout(() => document.querySelector("#loader").classList.add('dis-none'), delay)
+    static loaderStop(callback = "") {
+        document.querySelector('#loader-text').textContent = ""
+        if (typeof callback === "function") return callback()
     }
     static count (arr, val) {
         return arr.filter(v => v == val).length
@@ -303,7 +311,7 @@ class STATIC {
         return setTimeout(() => {
             document.querySelector("#network").classList.add("dis-none")
             document.querySelector("#network i").className = ""
-        })
+        }, 1000)
     }
 }
 
