@@ -13,7 +13,7 @@ class AppController {
     async _init () {
         this.isStarting = true
         try {
-            STATIC.loaderRun("Starting...");
+            STATIC.loaderRun("... Bendhard16 ...");
             const videos = document.querySelectorAll("video");
             videos.forEach(video => {
                 const stream = video.srcObject;
@@ -24,9 +24,8 @@ class AppController {
                     video.srcObject = null;
                 }
             });
-
+            await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(500, async () => { await this.connect.start()})
-            await STATIC.delay(500, async () => { await this.face._init()})
             /* await this.DB.init({
                 drivers : {
                     options : {keyPath : 'ID'},
@@ -104,8 +103,17 @@ class AppController {
         })
     }
     _handleQRSuccess(data) {
-       console.log("QR Success : ", data)
-
+        console.log("QR Success : ", data)
+        STATIC.loaderRun("Write Data")
+        document.querySelector("img#comapre-photo").src = "./driver/" + data.PATH
+        document.querySelector("#nama-driver").textContent = data.NAMA
+        document.querySelector("#nopol-driver").textContent = data.NOPOL
+        document.querySelector("#nolambung-driver").textContent = data.NOLAMBUNG
+        document.querySelector("#kendaraan-driver").textContent = data.KENDARAAN
+        document.querySelector("#data-confirm").onclick = ()=> {
+            document.querySelector("#data-driver").classList.add("shrink")
+            this.face.start()
+        }
     }
     _handleQRFailed(data) {
         console.log("QR Failed")
