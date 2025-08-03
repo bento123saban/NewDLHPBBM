@@ -73,8 +73,10 @@
         </div>
     </div>
 
+    
+
     <div class="content grid-center p-20 hidden relative dis-none" id="face" >
-        <div id="face-content" class="relative hidden">
+        <div id="face-content" class="relative br-none transparent">
             <div id="face-vid-box" class="relative">
                 <video id="face-video" autoplay muted playsinline></video>
                 <div id="capture-face" class="grid-center dis-none"><i class="fas fa-image fz-20"></i></div>
@@ -95,31 +97,31 @@
                 </div>
                 
                 <div id="matched-box" class="white grid-center w-100 h-100 dis-none">
-                    <div class="unmatched-content clr-red grid-center">
+                    <div class="unmatched-content clr-green grid-center">
                         <div class="unmatched-icon">
-                            <i class="fas fa-ban fz-40"></i>
+                            <i class="fas fa-check fz-40"></i>
                         </div>
                         <div class="unmatched-text">
-                            <h3 class="align-center uppercase">Tidak Cocok</h3>
-                            <span class="fz-12 bolder">Wajah tidak cocok, silahkan coba lagi.</span>
+                            <h3 class="align-center uppercase">Verifikasi Berhasil</h3>
+                            <span class="fz-12 bolder">silahkan menunggu sedang mengalihkan.</span>
                         </div>
                     </div>
                 </div>
             </div>
-            <div id="data-driver" class="clr-default bolder uppercase p-10">
+            <div id="data-driver" class="shrink clr-default bolder uppercase    ">
                 <div class="data-left h-100 grid-center">
                     <div class="driver-img hidden">
                         <img src="./img/123.jpg" alt="driver-photo" id="compare-photo">
                     </div>
                 </div>
-                <div class="data-right">
+                <div class="data-right clr-white">
                     <span>Nama Driver</span>
                     <span>DE 0813 AR</span>
                     <span>X-001 DS</span>
                     <span>Pick UP L300</span>
                 </div>
             </div>
-            <div class="scan-guide-line grid-center br-orange" id="face-guide-line">
+            <div class="scan-guide-line grid-center br-white" id="face-guide-line">
                 <div class="line ln1"></div>
                 <div class="line ln2"></div>
                 <div class="line ln3"></div>

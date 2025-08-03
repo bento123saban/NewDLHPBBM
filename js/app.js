@@ -25,11 +25,8 @@ class AppController {
                 }
             });
 
-            await STATIC.delay(500, async () =>{ await this.connect.start()})
-            //await this.face._init()
-            //await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            //await new Promise(resolve => setTimeout(resolve, 1000));
+            await STATIC.delay(500, async () => { await this.connect.start()})
+            await STATIC.delay(500, async () => { await this.face._init()})
             /* await this.DB.init({
                 drivers : {
                     options : {keyPath : 'ID'},
@@ -60,7 +57,7 @@ class AppController {
             STATIC.delay(1500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
-                        await STATIC.delay(5000, () => {
+                        await STATIC.delay(3000, () => {
                             document.querySelector("#network").classList.add("dis-none")
                             document.querySelector("#network i").className = ""
                             STATIC.changeContent("home")
@@ -87,10 +84,10 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        STATIC.changeContent("scan");
-        await this.qrScanner.start();
+        STATIC.changeContent("face");
+        return await this.face.start();
         await STATIC.delay(3000)
-        await this.qrScanner._requestData("X-001");
+        await this.qrScanner._requestData("X-016");
     }
     stop() {
         this.qrScanner.stop();
@@ -106,8 +103,9 @@ class AppController {
 
         })
     }
-    _handleQRSuccess(code) {
-       
+    _handleQRSuccess(data) {
+       console.log("QR Success : ", data)
+
     }
     _handleQRFailed(data) {
         console.log("QR Failed")
@@ -858,16 +856,16 @@ class QRScanner {
             code    : code
         })
         STATIC.loaderStop()
+        if (post.data.confirm) return this.onSuccess(post.data)
         if (!post.confirm) return await this._scanWarn({
             head    : post.error.code,
             text    : post.error.message
         }, 5000)
-        else if (!post.data.confirm) return this.onFailed({
+        if (!post.data.confirm) return this.onFailed({
             head    : post.data.status,
             text    : post.data.msg,
             data    : post
         })
-        else if (post.data.confirm) return this.onSuccess(post)
     }
     async _scanWarn(data, timeout = 2500) {
         TTS.speak(data.text, () => {
@@ -1003,9 +1001,9 @@ class FaceRecognizer {
         //return
         if(this.readyState()) {
             this.captureBtn.classList.remove('dis-none');
-            this.captureBtn.onclick = () => this._startCountdown(() => this.captureAndVerify());
+            this.captureBtn.onclick = () => this._startCountdown();
             STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
-            TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", () => {
+            TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "",() => {
                 TTS.speak("Tekan tombol untuk mengambil gambar.")
             })
         } else {
@@ -1134,7 +1132,7 @@ class FaceRecognizer {
             if( counter > 0) return overlay.textContent = counter;
             clearInterval(interval);
             overlay.remove();
-            callback();
+            this.captureAndVerify();
         }, 1000);
     }
 
@@ -1167,7 +1165,7 @@ class FaceRecognizer {
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
             STATIC.toast("Sedang verifikasi wajah...", "info");
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah", () => {
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", () => {
                 return this.verifyFace(imageData);
             });
         } catch (error) {
@@ -1253,17 +1251,25 @@ class FaceRecognizer {
                     this.stop();
                     this.previewBox.classList.add("dis-none");
                     this.captureBtn.classList.add('dis-none');
-                    setTimeout(() => this.success(), 5000)
+                    //setTimeout(() => this.success(), 5000)    
                 });
-                else return this.verifyRetry ++ <= 1 && TTS.speak("Wajah tidak cocok, silahkan coba lagi. Maksimal 3 kali", () => {
-                    this.unmatchedBox.classList.remove("dis-none");
-                    this.previewBox.classList.add("dis-none");
-                    this.verifyRetry ++
-                    setTimeout(() => {
-                        this.captureBtn.classList.remove('dis-none');
-                        this.unmatchedBox.classList.add("dis-none")
-                    }, 5000);
-                });
+                else if (distance < 0.75) TTS.speak(
+                    "Wajah tidak cocok" + 
+                        ((this.verifyRetry == 0) ? 
+                            ", silahkan coba lagi. Maksimal 3 kali. Tersisa 2 kesempatan" :
+                            (this.verifyRetry == 1) ? 
+                                ", silahkan coba lagi. Tersisa 1 kesempatan." :
+                                ". Kesempatan telah habis."),
+                    () => {
+                        this.unmatchedBox.classList.remove("dis-none");
+                        this.previewBox.classList.add("dis-none");
+                        this.verifyRetry++
+                        console.log("VerifyRetry : ", this.verifyRetry)
+                        setTimeout(() => {
+                            this.captureBtn.classList.remove('dis-none');
+                            this.unmatchedBox.classList.add("dis-none")
+                        }, 5000);
+                    });
             }).catch(err => this.verifyRetry ++ <= 1 && TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
                     this.previewBox.classList.add("dis-none");
                     console.error("[FaceRecognizer] Gagal deteksi wajah:", err);
@@ -1296,7 +1302,7 @@ class FaceRecognizer {
         try {
             if (this.human) {
                 // Stop semua proses Human.js (misalnya face detection, body tracking, dll)
-                this.human.stop(); // stop inference loop
+                this.human.reset(); // stop inference loop
                 // Hentikan stream kamera
                 if (this.videoElement && this.videoElement.srcObject) {
                     const tracks = this.videoElement.srcObject.getTracks();
@@ -1475,7 +1481,7 @@ class IndexedDBController {
 
 window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
-    //return
+    
     var app = new AppController()
     await app._init();
     

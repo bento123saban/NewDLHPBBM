@@ -410,6 +410,7 @@ input::-webkit-inner-spin-button {
 .transparent {background: transparent !important;}
 .no-border {border: none !important;}
 
+.transparent {background: transparent !important;}
 
 /* gradasi cahaya yang bergerak */
 .skeleton-box {
