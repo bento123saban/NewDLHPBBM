@@ -85,7 +85,7 @@ class AppController {
     async start() {
         this.startAll = true
         STATIC.changeContent("face");
-        return await this.face.start();
+        //return await this.face.start();
         await STATIC.delay(3000)
         await this.qrScanner._requestData("X-016");
     }
