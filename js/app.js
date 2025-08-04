@@ -24,7 +24,7 @@ class AppController {
                     video.srcObject = null;
                 }
             });
-            await STATIC.delay(1500, async () => { await this.face._init()})
+            //await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(500, async () => { await this.connect.start()})
             /* await this.DB.init({
                 drivers : {
@@ -70,7 +70,11 @@ class AppController {
             let ttsUnlocked = false;
             document.querySelector("#start").onclick = () => {
                 console.log("Start button clicked");
-                if (ttsUnlocked) return this.start()
+                if (this.begin) return
+                if (ttsUnlocked) {
+                    this.begin = true
+                    return this.start()
+                }
                 const dummy = new SpeechSynthesisUtterance(" ");
                 window.speechSynthesis.speak(dummy);
                 ttsUnlocked = true;
@@ -83,8 +87,6 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        STATIC.changeContent("face");
-        //return await this.face.start();
         await STATIC.delay(3000)
         await this.qrScanner._requestData("X-016");
     }
@@ -102,15 +104,16 @@ class AppController {
 
         })
     }
-    _handleQRSuccess(data) {
+    async _handleQRSuccess(data) {
         console.log("QR Success : ", data)
         STATIC.loaderRun("Write Data")
-        document.querySelector("img#comapre-photo").src = "./driver/" + data.PATH
-        document.querySelector("#nama-driver").textContent = data.NAMA
-        document.querySelector("#nopol-driver").textContent = data.NOPOL
+        document.querySelector("img#compare-photo").src         = "./driver/" + data.PATH
+        document.querySelector("#nama-driver").textContent      = data.NAMA
+        document.querySelector("#nopol-driver").textContent     = data.NOPOL
         document.querySelector("#nolambung-driver").textContent = data.NOLAMBUNG
         document.querySelector("#kendaraan-driver").textContent = data.KENDARAAN
-        document.querySelector("#data-confirm").onclick = ()=> {
+        await STATIC.delay(2500)
+        document.querySelector("#data-confirm").onclick         = ()=> {
             document.querySelector("#data-driver").classList.add("shrink")
             this.face.start()
         }
@@ -929,7 +932,6 @@ class QRScanner {
     _errorUI(head, text, ) {
         
     }
-    
 }
 
 class FaceRecognizer {
@@ -965,22 +967,26 @@ class FaceRecognizer {
             if (!HumanLib) throw new Error("Human.js belum dimuat");
             
             this.human = new HumanLib({
-                backend: 'webgl',
-                modelBasePath: './models/',
+                backend         : 'webgl',
+                modelBasePath   : './models/',
                 cacheSensitivity: 0.9,
-                chaceModels : true,
-                warmup: "face",
-                async: true,
-                filter: { enabled: true },
-                face: {
-                    enabled: true,
-                    detector: { enabled: true, maxDetected: 1 },
-                    mesh: false,
-                    iris: false,
-                    emotion: false,
-                    description: {enabled : true },
-                    embedding: {enabled : true }
+                chaceModels     : true,
+                warmup          : "face",
+                async           : true,
+                filter          : { enabled: true },
+                face            : {
+                    enabled         : true,
+                    detector        : { enabled: true, maxDetected: 1 },
+                    mesh            : false,
+                    iris            : false,
+                    emotion         : false,
+                    description     : {enabled : true },
+                    embedding       : {enabled : true }
                 },
+                body            : { enabled: false },
+                hand            : { enabled: false },
+                object          : { enabled: false },
+                gesture         : { enabled: false }
             });
 
             try {
