@@ -1,11 +1,11 @@
+debug 
 
-Alur Scanner 
-    1. Scanner Start (Method : start, bindUI)
-    2. Tidak ada input QR Code 60 detik Scanner Stop (Method : stop)
-    3. Input QR Code kalau tidak valid 5 kali dan 10 kali ada wrning (Method : onFailed)
-
-
-
-
-
-
+AppController
+1. All init 
+    isStarting
+    TurnOff All Video Stream
+    Load FrameWork/Models/DB
+    Click Start
+        Cek TTS
+2. Start
+    

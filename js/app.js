@@ -25,8 +25,8 @@ class AppController {
                 }
             });
             
-            //await STATIC.delay(1500, async () => { await this.face._init()})
-            //await STATIC.delay(500, async () => { await this.connect.start()})
+            await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(500, async () => { await this.connect.start()})
             /* await this.DB.init({
                 drivers : {
                     options : {keyPath : 'ID'},
@@ -54,8 +54,6 @@ class AppController {
                 }
             }); */
             
-            //return STATIC.changeContent('alert')
-            
             STATIC.delay(500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
@@ -68,12 +66,10 @@ class AppController {
                 })
                 this.connect.pause()
                 this.isStarting = false
-            });
-            
-                
+            })
+
             let ttsUnlocked = false;
             document.querySelector("#start").onclick = () => {
-                console.log("Start button clicked");
                 if (this.begin) return
                 if (ttsUnlocked) {
                     this.begin = true
@@ -91,10 +87,9 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        //await STATIC.delay(3000)
-        STATIC.alert('body', 'green')
+        //STATIC.changeContent("scan")
         //await this.qrScanner.start()
-        //await this.qrScanner._requestData("X-016");
+        await this.qrScanner._requestData("A-001");
     }
     stop() {
         this.qrScanner.stop();
@@ -1047,16 +1042,14 @@ class FaceRecognizer {
         if(this.readyState()) {
             this.captureBtn.classList.remove('dis-none');
             this.captureBtn.onclick = () => this._startCountdown();
-            STATIC.toast("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "info")
-            TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu.", "",() => {
-                TTS.speak("Tekan tombol untuk mengambil gambar.")
-            })
+            STATIC.toast("Silakan posisikan wajah Anda di dalam garis bantu.", "info")
+            TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu. Kemudian tekan untuk mengambil gamba.")
         } else {
             if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
-                status : "init failed",
+                status : "denied",
                 text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
             });
-            setTimeout(() => this._init(), 1000)
+            setTimeout(() => this.start(), 1000)
             return this.setupRetry ++
         }
     }
