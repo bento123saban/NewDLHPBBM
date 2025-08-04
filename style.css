@@ -476,20 +476,21 @@ body {
 }
 .alert-box {
   width: 250px;
-  border: 2px solid white !important;
   position: relative;
   overflow: hidden;
   border-radius: 10px;
   width: 240px;
 }
 .alert-head {
-  margin: 0;
-  padding: 10px 0;
+  margin: 0 auto;
+  padding: 0 !important;
   text-align: center;
   font-weight: bolder;
+  width: fit-content;
+  min-width: 65%;
 }
 .alert-text {
   font-size: 12px;
-  padding: 6px;
+  padding: 0px;
   text-align: justify;
 }
