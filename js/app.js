@@ -97,7 +97,7 @@ class AppController {
         this.connect.pause()
     }
     _handleFaceSuccess() {
-
+        
     }
     _handleFaceFailed(data) {
         STATIC.verifyController({
@@ -1046,8 +1046,9 @@ class FaceRecognizer {
             TTS.speak("Kamera siap. Silakan posisikan wajah Anda di dalam garis bantu. Kemudian tekan untuk mengambil gamba.")
         } else {
             if(this.setupRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
-                status : "denied",
-                text   : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
+                status  : "denied",
+                head    : "Head",
+                text    : "Gagal inisiasi Face Verify setelah 3 kali percobaan"
             });
             setTimeout(() => this.start(), 1000)
             return this.setupRetry ++
@@ -1081,7 +1082,7 @@ class FaceRecognizer {
         return param
     }
     async loadTargetEmbedd() {
-        this._log('Get target embedding...')
+        STATIC.loaderRun('Get target embedding...')
         if (!this.targetImage || !this.human) {
             this._log("Target image atau Human belum siap");
             return this.targetReady = false;
@@ -1108,10 +1109,13 @@ class FaceRecognizer {
         } catch (err) {
             this._log("Gagal mengambil embedding target: " + err.message);
             return this.targetReady = false;;
+        } finally {
+            await STATIC.delay(2500)
         }
     }
     async _setupCamera() {
-        this._log("Memulai setup kamera depan...");
+        STATIC.loaderRun("Memulai setup kamera...")
+        this._log("Memulai setup kamera...");
         try {
             const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
             if (!hasMediaDevices) {
@@ -1151,6 +1155,8 @@ class FaceRecognizer {
             this._log("Setup kamera gagal: " + err.message);
             STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');            
             return this.cameraReady = false;
+        } finally {
+            await STATIC.delay(2500, ()=> STATIC.loaderStop())
         }
     }
     _startCountdown(callback) {
@@ -1276,13 +1282,13 @@ class FaceRecognizer {
                 const distance = this.cosineSimilarity(detected.embedding, this.targetEmbedd);
                 this._log("Distance antara wajah: " + distance);
 
-                if (distance >= 0.75) return TTS.speak("Verifikasi wajah berhasil", () => {
+                if (distance >= 0.55) return TTS.speak("Verifikasi wajah berhasil", () => {
                     //STATIC.toast("Wajah cocok ✅", "success");
                     this.matchedBox.classList.remove("dis-none");
                     this.stop();
                     this.previewBox.classList.add("dis-none");
                     this.captureBtn.classList.add('dis-none');
-                    //setTimeout(() => this.success(), 5000)    
+                    setTimeout(() => this.success(), 500)    
                 });
                 else if (distance < 0.75) TTS.speak(
                     "Wajah tidak cocok" + 
