@@ -462,3 +462,34 @@ body {
 #matched-box i {
   font-size: 60px !important;
 }
+
+
+.alert {
+  display: grid;
+  place-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  background: black;
+}
+.alert-box {
+  width: 250px;
+  border: 2px solid white !important;
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  width: 240px;
+}
+.alert-head {
+  margin: 0;
+  padding: 10px 0;
+  text-align: center;
+  font-weight: bolder;
+}
+.alert-text {
+  font-size: 12px;
+  padding: 6px;
+  text-align: justify;
+}

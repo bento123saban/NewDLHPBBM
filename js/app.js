@@ -24,8 +24,9 @@ class AppController {
                     video.srcObject = null;
                 }
             });
+            
             //await STATIC.delay(1500, async () => { await this.face._init()})
-            await STATIC.delay(500, async () => { await this.connect.start()})
+            //await STATIC.delay(500, async () => { await this.connect.start()})
             /* await this.DB.init({
                 drivers : {
                     options : {keyPath : 'ID'},
@@ -53,7 +54,9 @@ class AppController {
                 }
             }); */
             
-            STATIC.delay(1500, async() => {
+            //return STATIC.changeContent('alert')
+            
+            STATIC.delay(500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
                         await STATIC.delay(3000, () => {
@@ -66,6 +69,7 @@ class AppController {
                 this.connect.pause()
                 this.isStarting = false
             });
+            
                 
             let ttsUnlocked = false;
             document.querySelector("#start").onclick = () => {
@@ -87,8 +91,10 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        await STATIC.delay(3000)
-        await this.qrScanner._requestData("X-016");
+        //await STATIC.delay(3000)
+        STATIC.alert('body', 'green')
+        //await this.qrScanner.start()
+        //await this.qrScanner._requestData("X-016");
     }
     stop() {
         this.qrScanner.stop();
@@ -100,11 +106,14 @@ class AppController {
     }
     _handleFaceFailed(data) {
         STATIC.verifyController({
-            status : "denied",
-
+            status      : "denied",
+            head        : data.head,
+            text        : data.text,
+            callback    : data.callback
         })
     }
-    async _handleQRSuccess(data) {
+    async _handleQRSuccess(param) {
+        const data = param.data
         console.log("QR Success : ", data)
         STATIC.loaderRun("Write Data")
         document.querySelector("img#compare-photo").src         = "./driver/" + data.PATH
@@ -112,8 +121,17 @@ class AppController {
         document.querySelector("#nopol-driver").textContent     = data.NOPOL
         document.querySelector("#nolambung-driver").textContent = data.NOLAMBUNG
         document.querySelector("#kendaraan-driver").textContent = data.KENDARAAN
-        await STATIC.delay(2500)
+        document.querySelector("#data-confirm").classList.remove('dis-none')
+        document.querySelector("#face-guide-line").classList.add('dis-none')
+        document.querySelector("#face-vid-box").classList.add('dis-none')
+        await STATIC.delay(2500, () => {
+            STATIC.loaderStop()
+            STATIC.changeContent('face')
+        })
         document.querySelector("#data-confirm").onclick         = ()=> {
+            document.querySelector("#data-confirm").classList.add('dis-none')
+            document.querySelector("#face-guide-line").classList.remove('dis-none')
+            document.querySelector("#face-vid-box").classList.remove('dis-none')
             document.querySelector("#data-driver").classList.add("shrink")
             this.face.start()
         }
@@ -228,15 +246,15 @@ class STATIC {
         return {
             show : (callback = "") => {
                 STATIC.changeContent("verify")
-                document.querySelector("#verify h4").textContent = data.head
-                document.querySelector("#verify span").textContent = data.text
+                document.querySelector("#verify h4").textContent        = data.head
+                document.querySelector("#verify span").textContent      = data.text
                 if (data.status == 'denied') {
-                    document.querySelector("#verify i").className = "fas fa-x fz-30 grid-center m-auto"
-                    document.querySelector("#verify-data").className = "red align-center"
+                    document.querySelector("#verify i").className       = "fas fa-x fz-30 grid-center m-auto"
+                    document.querySelector("#verify-data").className    = "red align-center"
                 }
                 else {
-                    document.querySelector("#verify i").className = "fas fa-check fz-30 grid-center m-auto"
-                    document.querySelector("#verify-data").className = "green align-center"
+                    document.querySelector("#verify i").className       = "fas fa-check fz-30 grid-center m-auto"
+                    document.querySelector("#verify-data").className    = "green align-center"
                 }
                 if(typeof callback === "function") callback()
             },
@@ -309,6 +327,28 @@ class STATIC {
             document.querySelector("#network").classList.add("dis-none")
             document.querySelector("#network i").className = ""
         }, 1000)
+    }
+    static alert(parent, color,  _head = 'Alert', _text = 'Lorem ipsum dolor sit amet.', callback = ""){
+        if (!parent) return
+        const div   = document.createElement('div'),
+            box     = document.createElement('div'),
+            head    = document.createElement('h3'),
+            text    = document.createElement('p')
+            
+        head.textContent    = _head
+        text.textContent    = _text
+        div.className       = 'alert'
+        box.className       = 'alert-box grey'
+        head.className      = 'alert-head p-10 ' + color
+        text.className      = 'alert-text bolder clr-black'
+        
+        box.appendChild(head)
+        box.appendChild(text)
+        div.appendChild(box)
+        
+        document.querySelector(parent).appendChild(div)
+        
+        if (typeof callback === 'function') callback()
     }
 }
 
@@ -667,10 +707,7 @@ class QRScanner {
         
             return true
         } catch (err) {
-            this._scanWarn({
-                head : "Init error",
-                text : err.message
-            })
+            STATIC.alert("#camera-content","Init error", err.message)
             return false
         }
     }
@@ -715,7 +752,7 @@ class QRScanner {
             )
             this.hasStarted = true;
         } catch (err) {
-            STATIC.toast("Gagal membuka kamera", "error");
+            STATIC.alert('#camera-content', 'red', 'Scanner Error', err.message || "Gagal membuka kamera")
             this.isRunning = false;
             this.stop();
             console.error("QRScanner start error:", err.message);
@@ -724,11 +761,8 @@ class QRScanner {
         }
     }
     async stop() {
-        
         console.log('QR Stop')
-
         this._clearCountdown();
-
         this._hideElement(this.scanGuide);
         if(this.hasStarted) this._showElement(this.restartBtn);
 
@@ -737,6 +771,7 @@ class QRScanner {
                 await this.qrCodeScanner.stop();
                 await this.qrCodeScanner.clear();
             } catch (err) {
+                STATIC.alert('#camera-conent', 'red', 'Scanner Error', err.message)
                 console.warn("QRScanner stop error:", err.message);
             }
         }
@@ -758,6 +793,7 @@ class QRScanner {
                 this._clearCountdown()
                 console.log("Scanner paused");
             } catch (err) {
+                STATIC.alert('#camera-content', 'red', 'Scanner Error', err.message || 'Qr Scanner pause Gagal')
                 console.warn("Pause gagal:", err);
             }
         }
@@ -770,6 +806,7 @@ class QRScanner {
                 console.log("Scanner resumed");
                 this._startCountdown()
             } catch (err) {
+                STATIC.alert('#camera-content', 'red', 'Scanner Error', err.message || 'Qr Scanner resume Gagal')
                 console.warn("Resume gagal:", err);
             }
         }
@@ -791,9 +828,9 @@ class QRScanner {
         let timeout = null;
         try {
             timeout = setTimeout(() => {
-                return TTS.speak("Verifikasi gagal, silahkan coba lagi", () => {
-                    STATIC.toast("Timeout verifikasi QR", "error")
+                return TTS.speak("Timeout verifikasi, silahkan coba lagi", () => {
                     this.isVerify = false;
+                    throw new Error("Timeout verifikasi, silahkan coba lagi")
                 });
             }, 5000); // 10 detik max proses
 
@@ -814,28 +851,24 @@ class QRScanner {
             try {qrData = JSON.parse(decoded);}
             catch (err) {
                 this.falseCount ++
-                throw new Error("QR bukan JSON valid.");
+                return console.error("QR bukan JSON valid.");
             }
             
             // 📋 Validasi struktur QR
             if (typeof qrData !== "object" || !qrData.auth || qrData.auth !== "Bendhard16") {
                 this.falseCount ++
-                throw new Error("QR tidak memiliki otorisasi atau auth salah.");
+                return console.error("QR tidak memiliki otorisasi atau auth salah.");
             }
             if (!qrData.code) {
                 this.falseCount ++
-                throw new Error('Code tidak ditemukan atau invalid')
+                return console.error('Code tidak ditemukan atau invalid')
             }
             this.isVerify = false
             clearTimeout(timeout);
             this.resume()
             const success = await this._requestData(qrData.code)
         } catch (err) {
-            console.error("❌ Error verifikasi QR:", err.message);
-            await this._scanWarn({
-                head : "Error verifikasi QR",
-                text : err.message || "QR tidak valid"
-            })
+            STATIC.alert("#camera-content", "red", "Error verifikasi QR", err.message || "QR tidak valid")
             this.falseCount ++
             this.resume()
             this._startCountdown() 
@@ -958,7 +991,6 @@ class FaceRecognizer {
         this.verifyRetry    = 0;
         this.captureRetry   = 0
     }
-
     async _init() {
         STATIC.loaderRun("Load Human JS...")
         let error = ""
@@ -1006,7 +1038,6 @@ class FaceRecognizer {
         }
         if(error.length >= 5) throw new Error(err)
     }
-
     async start() {
         this.captureBtn.classList.add('dis-none');
         this.captureBtn.onclick = () => {};
@@ -1029,7 +1060,6 @@ class FaceRecognizer {
             return this.setupRetry ++
         }
     }
-
     readyState () {
         let text    = "",
             param   = true
@@ -1057,7 +1087,6 @@ class FaceRecognizer {
         STATIC.toast(text)
         return param
     }
-
     async loadTargetEmbedd() {
         this._log('Get target embedding...')
         if (!this.targetImage || !this.human) {
@@ -1069,6 +1098,7 @@ class FaceRecognizer {
             const result = await this.human.detect(this.targetImage);
             if (!result.face || result.face.length === 0) {
                 this._log("Tidak ditemukan wajah pada foto target");
+                
                 return this.targetReady = false;;
             }
 
@@ -1087,7 +1117,6 @@ class FaceRecognizer {
             return this.targetReady = false;;
         }
     }
-
     async _setupCamera() {
         this._log("Memulai setup kamera depan...");
         try {
@@ -1131,7 +1160,6 @@ class FaceRecognizer {
             return this.cameraReady = false;
         }
     }
-
     _startCountdown(callback) {
         TTS.stop()
         let counter         = 3;
@@ -1149,7 +1177,6 @@ class FaceRecognizer {
             this.captureAndVerify();
         }, 1000);
     }
-
     captureAndVerify() {
         try {
             const canvas    = document.createElement("canvas"),
@@ -1195,7 +1222,6 @@ class FaceRecognizer {
             });
         }
     }
-    
     isImageBlurred(imageData) {
         // Konversi grayscale
         const gray = [];
@@ -1226,7 +1252,6 @@ class FaceRecognizer {
 
         return variance < 20; // Threshold bisa disesuaikan
     }
-
     cosineSimilarity(a, b) {
         let dot = 0, normA = 0, normB = 0;
         for (let i = 0; i < a.length; i++) {
@@ -1235,8 +1260,7 @@ class FaceRecognizer {
             normB += b[i] * b[i];
         }
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
-
+    }    
     verifyFace(imageData) {
         try {
             this.human.detect(imageData).then(result => {
@@ -1311,7 +1335,6 @@ class FaceRecognizer {
             })
         }
     }
-
     async stop() {
         try {
             if (this.human) {
@@ -1332,9 +1355,10 @@ class FaceRecognizer {
             console.error("❌ Gagal stop Human.js:", err);
         }
     }
-
     _log(msg) {console.log("[FaceRecognizer]", msg);}
-    
+    errorHandle(data) {
+        
+    }
 }
 
 class IndexedDBController {
