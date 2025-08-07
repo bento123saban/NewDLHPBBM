@@ -1521,7 +1521,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
     
     var app = new AppController()
-    await app._init();
+    //await app._init();
     
     const videos = document.querySelectorAll("video");
     /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{
