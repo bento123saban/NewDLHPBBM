@@ -963,7 +963,8 @@ class QRScanner {
 }
 
 class FaceRecognizer {
-    constructor (onSuccess  = "", onFailure = "") {
+    constructor (main, onSuccess, onFailure) {
+        this.appCTRL        = main
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
@@ -1290,7 +1291,7 @@ class FaceRecognizer {
                     this.captureBtn.classList.add('dis-none');
                     setTimeout(() => this.success(), 500)    
                 });
-                else if (distance < 0.75) TTS.speak(
+                else if (distance < 0.55) TTS.speak(
                     "Wajah tidak cocok" + 
                         ((this.verifyRetry == 0) ? 
                             ", silahkan coba lagi. Maksimal 3 kali. Tersisa 2 kesempatan" :
