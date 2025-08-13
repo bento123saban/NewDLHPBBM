@@ -13,8 +13,6 @@
     <span id="ping-text" class=""></span>
     <span id="ping-counter" class="fz-8 dis-none">123</span>
 
-    <img src="./img/driver.jpeg" class="dis-none" id="face-basic" alt="">
-    
     <div class="main-bg fixed-top-left vh-100 vw-100 hidden">
         <div class="wave-box black flex-end flex-column relative">
             <div class="blob-parent dis-none absolute-top">
@@ -40,7 +38,6 @@
         </div>
     </div>
 
-    
     <div class="content flex-center justify-center flex-column gap-15 vh-100 p-30 clr-white dis-none" id="home">
         <h1 class="m-0 p-0 uppercase">Kontrol BBM</h1>
         <h4 class="m-0 p-0">DLHP Kota Ambon</h4>
@@ -133,15 +130,20 @@
         </div>
     </div>
 
-    <div class="content grid-center red p-20 hidden realtive" id="capture">
-        <div id="capture-box" class="green grid-center relative w-100 h-100 borad-15">
+    <div class="content grid-center p-20 hidden realtive" id="capture">
+        <div id="capture-box" class="clr-white grid-center relative w-100 h-100 borad-15 hidden">
             <video id="capture-cam"></video>
-            <h3 class="absolute-top">Capture</h3>
-            <div id="capture-btn"></div>
+            <h3 class="absolute-top uppercase fz-30">Capture</h3>
             <div id="capture-notif" class="absolute-center align-center fz-20 w-100">
                 <i class="fas fa-triangle-exclamation fz-40"></i>
                 <span class="fz-14 mt-2 bolder dis-block">Foto buram. Silahkan Ulangi!</span>   
             </div>
+            <div id="capture-preview-box" class="w-100 h-100 absolute-top p-15">
+                <div class="capture-previewer w-100 h-100 relative hidden">
+                    <img class="w-100 h-100 absolute-top" alt="" id="capture-image">
+                </div>
+            </div>
+            <div id="capture-btn" class="grid-center"><i class="fas fa-camera fz-40"></i></div>
         </div>
     </div>
 
@@ -196,8 +198,7 @@
     </div>
 
     <div id="toast" class="">Toast text</div>
-    
-    
+
     
 <!-- Harus di atas app.js -->
 

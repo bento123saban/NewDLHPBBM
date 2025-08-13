@@ -494,3 +494,23 @@ body {
   padding: 0px;
   text-align: justify;
 }
+
+
+#capture-cam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+}
+#capture-btn {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 80px;
+  aspect-ratio: 1;
+  border-radius: 1000px;
+  border: 3px solid white;
+  color: #fff;
+}
