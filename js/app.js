@@ -5,6 +5,7 @@ class AppController {
         this.request    = new RequestManager(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
+        this.capture    = new Capture(this, this._handleCapture.bind(this))
         this.DB         = new IndexedDBController();
         this.isStarting = true
         this.startAll   = false;
@@ -111,10 +112,19 @@ class AppController {
         this.qrScanner.stop();
         this.face.stop()
         this.connect.pause()
+        this.capture.stop()
+    }
+    async _handleCapture(blob) {
+        STATIC.loaderRun('...')
+        this.DATA.CAPTURE = blob
+        await STATIC.delay(3000, () => this.changeContent(''))
     }
     _handleFaceSuccess(blob) {
         this.DATA.FACE = blob
-        
+        await STATIC.delay(3000, () => {
+            STATIC.loaderStop()
+            this.BBMCollect()
+        })
     }
     _handleFaceFailed(data) {
         STATIC.verifyController({
@@ -163,6 +173,7 @@ class AppController {
             this.qrScanner.start()
         }))
     }
+    
 }
 
 class connection {
@@ -1372,7 +1383,6 @@ class FaceRecognizer {
                 // Clear canvas preview atau apapun yang sedang ditampilkan
                 const canvas = document.querySelector("canvas");
                 if (canvas) canvas.remove();
-                    
             }
         } catch (err) {
             console.error("❌ Gagal stop Human.js:", err);
@@ -1385,7 +1395,7 @@ class FaceRecognizer {
 }
 
 class Capture {
-    constructor (main) {
+    constructor (main, success) {
         this.appCTRL    = main
         this.video      = document.querySelector('#capture-cam')
         this.button     = document.querySelector('#capture-btn')
@@ -1394,6 +1404,12 @@ class Capture {
         this.preview    = document.querySelector('#capture-preview-box')
         this.image      = document.querySelector('#capture-image')
         this.ready      = false
+        this.success    = success
+        
+    }
+    init () {
+        this.button.classList.add('dis-none')
+        this.preview.classList.add('dis-none')
     }
     async _setupCamera () {
         STATIC.loaderRun("Memulai setup kamera...")
@@ -1454,7 +1470,15 @@ class Capture {
             });
             
             this.image.src = canvas.toDataURL('image/jpeg0')
-            this.preview.classList.remobe('dis-none')
+            this.preview.classList.remove('dis-none')
+            
+            let blox = null
+            canvas.toBlob((blob) => {
+                blox = blob
+            }, 'image/jpeg', 0.9)
+            
+            this.oncapture = false
+            return this.succes(blox1)
         }
         catch (e) {
             return TTS.speak("Terjadi kesalahan saat mengambil gambar. Silahkan Coba lagi.", () => {
@@ -1464,10 +1488,49 @@ class Capture {
             });
         }
     }
-    stop () 
     async start () {
-        await this._setupCamera()
-        if ()
+        try {
+            await this._setupCamera()
+            if (!this.ready) throw new Error("Kamera belum ready")
+            this.button.classList.add('dis-none')
+            this.preview.classList.add('dis-none')
+        }
+        catch (e){
+            this.button.classList.add('dis-none')
+            this.preview.classList.add('dis-none')
+            STATIC.toast('Error : ' + e.message)
+        }
+    }
+    _bindEvents() {
+        this.button.onclick = () => {
+            if (this.oncapture) return
+            this.button.classList.add('dis-none')
+            this.oncapture = true
+            this.capture()
+        }
+    }
+    async stop() {
+        try {
+            // Hentikan stream kamera
+            if (this.video && this.video.srcObject) {
+                const tracks = this.video.srcObject.getTracks();
+                tracks.forEach(track => track.stop());
+                this.video.srcObject = null;
+            }
+            // Clear canvas preview atau apapun yang sedang ditampilkan
+            const canvas = document.querySelector("canvas");
+            if (canvas) canvas.remove();
+        } catch (err) {
+            console.error("❌ Gagal stop Capture : ", err);
+        }
+    }
+}
+
+class Form {
+    constructor (main, success) {
+        this.bbmForm    = document.querySelector('#bbm')
+        this.literForm  = document.querySelector('#liter')
+        this.types      = this.bbmForm.querySelectorAll('#bb.')
     }
 }
 
