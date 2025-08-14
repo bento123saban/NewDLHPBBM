@@ -130,20 +130,22 @@
         </div>
     </div>
 
-    <div class="content grid-center p-20 hidden realtive" id="capture">
+    <div class="content grid-center p-15 hidden realtive" id="capture">
         <div id="capture-box" class="clr-white grid-center relative w-100 h-100 borad-15 hidden">
             <video id="capture-cam"></video>
             <h3 class="absolute-top uppercase fz-30">Capture</h3>
-            <div id="capture-notif" class="absolute-center align-center fz-20 w-100">
-                <i class="fas fa-triangle-exclamation fz-40"></i>
-                <span class="fz-14 mt-2 bolder dis-block">Foto buram. Silahkan Ulangi!</span>   
-            </div>
-            <div id="capture-preview-box" class="w-100 h-100 absolute-top p-15">
-                <div class="capture-previewer w-100 h-100 relative hidden">
+            <div id="capture-btn" class="dis-none grid-center"><i class="fas fa-camera fz-40"></i></div>
+            <div id="capture-preview-box" class="dis-none w-100 h-100 absolute-top p-15">
+                <div class="capture-previewer w-100 h-100 relative hidden borad-10">
                     <img class="w-100 h-100 absolute-top" alt="" id="capture-image">
                 </div>
             </div>
-            <div id="capture-btn" class="grid-center"><i class="fas fa-camera fz-40"></i></div>
+            <div id="capture-notif" class="dis-none align-center absolute-top w-100 h-100 fz-20 grid-center">
+                <div>
+                    <i class="fas fa-triangle-exclamation fz-40"></i>
+                    <span class="fz-14 mt-2 bolder dis-block">Foto buram. Silahkan Ulangi!</span>   
+                </div>
+            </div>
         </div>
     </div>
 

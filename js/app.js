@@ -33,7 +33,7 @@ class AppController {
                 }
             });
             
-            await STATIC.delay(1500, async () => { await this.face._init()})
+            //await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(500, async () => { await this.connect.start()})
             /* await this.DB.init({
                 drivers : {
@@ -95,7 +95,7 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        STATIC.changeContent("scan")
+        return STATIC.changeContent("capture")
         this.DATA = {
             NOLAMBUNG: null,
             FACE: null,
@@ -1395,7 +1395,6 @@ class Capture {
         this.image      = document.querySelector('#capture-image')
         this.ready      = false
     }
-    
     async _setupCamera () {
         STATIC.loaderRun("Memulai setup kamera...")
         this._log("Memulai setup kamera...");
@@ -1449,16 +1448,26 @@ class Capture {
             
             const isBlur = this.appCTRL.face.isImageBlurred(imageData);
             if (isBlur) return TTS.speak("Gambar buram, silakan ulangi", () => {
-                this.previewBox.classList.add('dis-none');
+                this.preview.classList.add('dis-none');
                 this.captureBtn.classList.remove('dis-none');
                 STATIC.toast("Gambar buram, silakan ulangi", "error");
             });
             
             this.image.src = canvas.toDataURL('image/jpeg0')
+            this.preview.classList.remobe('dis-none')
         }
         catch (e) {
-            
+            return TTS.speak("Terjadi kesalahan saat mengambil gambar. Silahkan Coba lagi.", () => {
+                this.preview.classList.add('dis-none');
+                STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
+                console.error("[Capture] Error saat capture:", error);
+            });
         }
+    }
+    stop () 
+    async start () {
+        await this._setupCamera()
+        if ()
     }
 }
 
@@ -1620,9 +1629,9 @@ class IndexedDBController {
 
 window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
-    
+    return 
     var app = new AppController()
-    await app._init();
+    //await app._init();
     
     const videos = document.querySelectorAll("video");
     /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{
