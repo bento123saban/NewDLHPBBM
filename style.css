@@ -240,11 +240,15 @@ body {
   border-radius: 10px;
   transition:  all .4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
-.bbm-type-btn.chosen {
+.bbm-type-btn:hover,
+.liter-count span:hover,
+.liter-count span.chosen,
+#bbm-chosen-type {
   background: linear-gradient(45deg, white, lightgray);
   color: darkcyan;
     scale: 1.2;
     border-color: darkcyan;
+    cursor: pointer;
 }
 .bbm-type-btn.denied {
     scale: .8;
@@ -261,6 +265,7 @@ body {
     font-size: 18px;
     padding-top: 6px;
 }
+
 
 
 /* scan Toast settings */

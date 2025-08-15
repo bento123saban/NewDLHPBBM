@@ -119,7 +119,7 @@ class AppController {
         this.DATA.CAPTURE = blob
         await STATIC.delay(3000, () => this.changeContent(''))
     }
-    _handleFaceSuccess(blob) {
+    async _handleFaceSuccess(blob) {
         this.DATA.FACE = blob
         await STATIC.delay(3000, () => {
             STATIC.loaderStop()
@@ -1530,7 +1530,7 @@ class Form {
     constructor (main, success) {
         this.bbmForm    = document.querySelector('#bbm')
         this.literForm  = document.querySelector('#liter')
-        this.types      = this.bbmForm.querySelectorAll('#bb.')
+        this.types      = this.bbmForm.querySelectorAll('#bbm .bbm-type-btn')
     }
 }
 
