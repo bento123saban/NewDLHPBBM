@@ -16,7 +16,8 @@ class AppController {
                 CAPTURE     : null,
                 start       : null,
                 end         : null,
-                sent        : null
+                sent        : null,
+                DRIVER      : null
             }
     }
     async _init () {
@@ -139,6 +140,7 @@ class AppController {
         //console.log("QR Success : ", data)
         
         this.DATA.NOLAMBUNG = data.NOLAMBUNG
+        thid.DATA.DRIVER = data
         
         STATIC.loaderRun("Write Data")
         document.querySelector("img#compare-photo").src         = "./driver/" + data.PATH
@@ -1531,6 +1533,16 @@ class Form {
         this.bbmForm    = document.querySelector('#bbm')
         this.literForm  = document.querySelector('#liter')
         this.types      = this.bbmForm.querySelectorAll('#bbm .bbm-type-btn')
+        this.chosen     = document.querySelector("#bbm-chosen-type")
+    }
+    init () {
+        this.types.forEach(btn => {
+            btn.onclick = () => {
+                this.chosen.textContent = btn.textContent
+                this.literForm.classList.remove("dis-none")
+                this.bbmForm.classList.add("dis-none")
+            }
+        })
     }
 }
 
@@ -1692,6 +1704,7 @@ class IndexedDBController {
 
 window.addEventListener("DOMContentLoaded", async () => {
     //STATIC.loaderRun('Connecting...')
+    new Form()
     return 
     var app = new AppController()
     //await app._init();
