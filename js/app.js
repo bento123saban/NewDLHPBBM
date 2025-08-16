@@ -12,17 +12,16 @@ class AppController {
         this.href       = window.location.href;
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev";
         this.DATA       = {
+                TRXID       : null,
                 NOLAMBUNG   : null,
                 FACE        : null,
                 CAPTURE     : null,
-                BBM         : {
-                    type    : null,
-                    liter   : null
-                },
+                BBM         : null,
                 start       : null,
                 end         : null,
                 sent        : null,
-                DRIVER      : null
+                DRIVER      : null,
+                PAYCODE     : null
             }
     }
     async _init () {
@@ -41,6 +40,7 @@ class AppController {
             });
             
             await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(1500, () => { this.formbbm.init()})
             await STATIC.delay(1500, async () => { await this.connect.start()})
 
             STATIC.delay(2500, async() => {
@@ -50,7 +50,6 @@ class AppController {
                             document.querySelector("#network").classList.add("dis-none")
                             document.querySelector("#network i").className = ""
                             STATIC.changeContent("home")
-                            this.log("ChangeContent : HOME")
                         })
                     })
                 })
@@ -91,6 +90,7 @@ class AppController {
             sent        : null,
             DRIVER      : null
         }
+        this.DATA.start = Date.now()
         //await this.qrScanner.start()
         await this.qrScanner._requestData("A-001");
     }
@@ -102,10 +102,10 @@ class AppController {
     }
     async _handleQRSuccess(param) {
         const data = param.data
-        //console.log("QR Success : ", data)
         
         this.DATA.NOLAMBUNG = data.NOLAMBUNG
-        this.DATA.DRIVER = data
+        this.DATA.DRIVER    = data
+        this.DATA.TRXID     = Date.now()
         
         STATIC.loaderRun("Write Data")
         document.querySelector("img#compare-photo").src         = this.href + "/driver/" + data.PATH
@@ -142,6 +142,7 @@ class AppController {
     }
     async _handleFaceSuccess(blob) {
         this.DATA.FACE = blob
+        console.log(blob)
         this.face.runCapture(this.DATA.DRIVER.KEND)
     }
     _handleFaceFailed(data) {
@@ -153,15 +154,35 @@ class AppController {
         })
     }
     async _handleCaptureSuccess(blob) {
+        this.log("captureBlob", blob)
         STATIC.loaderRun('...')
         this.DATA.CAPTURE = blob
-        await STATIC.delay(3000, () => this.changeContent(''))
+        this.formbbm.start()
+        await STATIC.delay(3000, () => STATIC.changeContent('bbm-form'))
+        STATIC.loaderStop()
+        TTS.speak("Silahkan Pilih jenis BBM yang akan diisi")
     }
     async _handleFormSuccess(bbm){
-
+        this.DATA.BBM = bbm
+        this.log(bbm)
+        await STATIC.delay(500, () => STATIC.loaderRun("Sending Data..."))
+        this.finall()
+    }
+    finall() {
+        this.PAYCODE()
+        this.DATA.end = Date.now()
+        console.log(this.DATA)
     }
     log(param) {
-        console.log("[AppCTRL] " + param)
+        console.log("[AppCTRL] ", param)
+    }
+    PAYCODE () {
+        const now   = new Date(),
+            date    = now.getDate(),
+            month   = now.getMonth(),
+            year    = now.getFullYear().toString().slice(-2),
+            minute  = now.getMinutes()
+        return this.DATA.PAYCODE = `${date}${month}${year}${minute}`
     }
     
 }
@@ -291,6 +312,7 @@ class STATIC {
         const target = document.getElementById(targetId);
         if (!target) return undefined
         target.classList.remove("dis-none");
+        console.log("[STATIC] Change Content :", targetId)
         return true
     }
     static toast(msg, type = "info") {
@@ -365,6 +387,17 @@ class STATIC {
         document.querySelector(parent).appendChild(div)
         
         if (typeof callback === 'function') callback()
+    }
+    static blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = reader.result.split(",")[1]; // buang prefix data:image/jpeg;base64,
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
     }
 }
 
@@ -1000,8 +1033,6 @@ class FaceRecognizer {
     constructor (main, onSuccess, onFailure, onCapture) {
         this.appCTRL        = main;
 
-        this.STATE          = "FACE"
-
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
@@ -1009,16 +1040,17 @@ class FaceRecognizer {
         this.targetImage    = document.querySelector("#compare-photo");
         this.unmatchedBox   = document.querySelector("#unmatched-box");
         this.matchedBox     = document.querySelector("#matched-box");
+        this.notifCapt      = document.querySelector('#capture-notif i');
 
         this.success        = onSuccess;
         this.failed         = onFailure;
         this.capture        = onCapture;
+        
+        this.STATE          = "FACE"
 
         this.targetEmbedd   = null;
         this.targetReady    = false;
         this.human          = null;
-        this._isRunning     = false;
-        this._stream        = null;
         this.modelLoaded    = false;
         this.humanReady     = false;
         this.cameraReady    = false;
@@ -1026,7 +1058,8 @@ class FaceRecognizer {
         this.verifyRetry    = 0;
         this.captureRetry   = 0;
 
-        this.notifCapt      = document.querySelector('#capture-notif i')
+        this.faceBLOB       = null
+
     }
     async _init() {
         STATIC.loaderRun("Load Human JS...")
@@ -1162,36 +1195,20 @@ class FaceRecognizer {
         this._log("Memulai setup kamera...");
         try {
             const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-            if (!hasMediaDevices) {
-                this.cameraReady = false
-                throw new Error("Perangkat tidak mendukung kamera.");
-            }
+            if (!hasMediaDevices) throw new Error("Perangkat tidak mendukung kamera.");
     
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user" },
                 audio: false
-            }).catch(err => {
-                this.cameraReady = false
-                throw new Error("Akses kamera ditolak atau tidak tersedia: " + err.message);
-            });
+            }).catch(err => {throw new Error("Akses kamera ditolak atau tidak tersedia: " + err.message);});
     
-            if (!stream) {
-                this.cameraReady = false;
-                throw new Error("Stream kamera tidak tersedia.");
-            }
+            if (!stream) throw new Error("Stream kamera tidak tersedia.");
     
-            this._stream = stream;
             this.videoElement.srcObject = stream;
     
-            await this.videoElement.play().catch(err => {
-                this.cameraReady = false
-                throw new Error("Gagal memutar video kamera: " + err.message);
-            });
+            await this.videoElement.play().catch(err => {throw new Error("Gagal memutar video kamera: " + err.message);});
 
-            if (!this.videoElement || this.videoElement.readyState < 3) {
-                this.cameraReady = false
-                throw new Error("Kamera belum siap, mohon tunggu sebentar.");
-            }
+            if (!this.videoElement || this.videoElement.readyState < 3) throw new Error("Kamera belum siap, mohon tunggu sebentar.");
             
             this._log("Kamera depan ready...");
             return this.cameraReady = true;
@@ -1222,11 +1239,11 @@ class FaceRecognizer {
             return this.captureAndVerify();
         }, 1000);
     }
-    captureAndVerify() {
+    async captureAndVerify() {
         this._log("Capture")
+        const canvas    = document.createElement("canvas")
         try {
-            const canvas    = document.createElement("canvas"),
-                context     = canvas.getContext("2d", { willReadFrequently: true }),
+            const context   = canvas.getContext("2d", { willReadFrequently: true }),
                 video       = this.videoElement;
 
             canvas.width    = video.videoWidth;
@@ -1252,20 +1269,18 @@ class FaceRecognizer {
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
 
+            const blob = await new Promise(resolve => {
+                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9)
+            })
+
             if (this.STATE == "CAPTURE") {
-                canvas.toBlob((blob) => {
-                    this.captureBlob = blob
-                }, 'image/jpeg', 0.9)
-                return this.capture()
+                this.capture(blob)
+                return this.stop()      
             }
+            this.faceBLOB = blob
+            console.log(this.faceBLOB)
             STATIC.toast("Sedang verifikasi wajah...", "info");
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", () => {
-                canvas.toBlob((blob) => {
-                    this.faceBLOB = blob
-                }, 'image/jpeg', 0.9)
-                this._log("Start Verify")
-                return this.verifyFace(imageData);
-            });
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", async () => this.verifyFace(imageData));
         } catch (error) {
             this.captureRetry ++
             if (this.captureRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
@@ -1276,6 +1291,8 @@ class FaceRecognizer {
                 STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
                 console.error("[FaceRecognizer] Error saat capture:", error);
             });
+        } finally {
+            canvas.remove()
         }
     }
     isImageBlurred(imageData) {
@@ -1339,7 +1356,7 @@ class FaceRecognizer {
                 const distance = this.cosineSimilarity(detected.embedding, this.targetEmbedd);
                 this._log("Distance antara wajah: " + distance);
 
-                if (distance >= 0.55) return TTS.speak("Verifikasi wajah berhasil", () => {
+                if (distance >= 0.55) return TTS.speak("Verifikasi wajah berhasil.", () => {
                     this.matchedBox.classList.remove("dis-none");
                     this.previewBox.classList.add("dis-none");
                     this.captureBtn.classList.add('dis-none');
@@ -1381,7 +1398,7 @@ class FaceRecognizer {
                 STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
             });
         } finally {
-            this.faceBLOB = null
+            //this.faceBLOB = null
             this._log("Verify End")
             return this.verifyRetry >= 3 && TTS.speak("Gagal verifikasi wajah setelah 3 kali percobaan", () => {
                 this.captureBtn.classList.add('dis-none');
@@ -1409,23 +1426,38 @@ class FaceRecognizer {
                 // Clear canvas preview atau apapun yang sedang ditampilkan
                 const canvas = document.querySelector("canvas");
                 if (canvas) canvas.remove();
+                this.reset()
             }
         } catch (err) {
             console.error("❌ Gagal stop Human.js:", err);
         }
     }
+    reset () {
+        this.STATE          = "FACE"
+
+        this.targetEmbedd   = null;
+        this.targetReady    = false;
+        this.cameraReady    = false;
+        this.setupRetry     = 0;
+        this.verifyRetry    = 0;
+        this.captureRetry   = 0;
+
+        this.faceBLOB       = null
+        this.captureBLOB    = null
+    }
     _log(msg) {
         console.log("[FaceRecognizer]", msg)
     }
     runCapture (data) {
+        //this.reset()
         this.STATE = "CAPTURE"
         this._log("Mengalihkan ke Capture")
         this.captureBtn.classList.remove("dis-none")
         this.targetImage.src = window.location.href + "/kendaraan/" + data
         //console.log("Data Driver", data)
+        TTS.speak("Arahkan kamera ke kendaran untuk mengambil gambar. Pastikan jangan ada yang menghalangi.")
     }
 }
-
 
 class Form {
     constructor (main, success) {
@@ -1446,6 +1478,7 @@ class Form {
         }
     }
     init () {
+        STATIC.loaderRun("Form Init")
         this.types.forEach(type => {
             type.onclick = () => {
                 this.literForm.classList.remove("dis-none")
@@ -1453,6 +1486,7 @@ class Form {
                 this.change.classList.remove("dis-none")
                 this.chosenType.textContent = type.textContent
                 this.DATA.type = type.textContent
+                TTS.speak("Silahkan Pilih jumlah liter BBM yang akan diisi")
             }
         })
         this.change.onclick = () => this.start()
@@ -1465,10 +1499,16 @@ class Form {
                 this.chosen.classList.remove("absolute-bottom")
                 this.bbmForm.classList.add("dis-none")
                 this.change.classList.remove("dis-none")
+                TTS.speak("Kamu akan melakukan pengisian BBM " + this.DATA.type + " sejumlah " + this.DATA.liter + " liter. Silahkan pilih simpan atau ubah dengan memilih reset.")
             }
         })
+        this.save.onclick = () => {
+            STATIC.loaderRun("Save Data")
+            this.success(this.DATA)
+        }
     }
     start () {
+        this.log("START")
         this.bbmForm.classList.remove("dis-none")
         this.chosen.classList.add("dis-none")
         this.chosen.classList.add("absolute-bottom")
@@ -1477,6 +1517,9 @@ class Form {
     }
     reset () {
 
+    }
+    log(param) {
+        console.log("[BBMForm] :", param)
     }
 }
 
