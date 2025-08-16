@@ -399,6 +399,15 @@ class STATIC {
             reader.readAsDataURL(blob);
         });
     }
+    static base64ToBlob(base64, mimeType = "image/jpeg") {
+        const byteChars = atob(base64); // decode base64 → binary string
+        const byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) {
+            byteNumbers[i] = byteChars.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        return new Blob([byteArray], {type: mimeType});
+    }
 }
 
 class TTS {
@@ -1058,7 +1067,7 @@ class FaceRecognizer {
         this.verifyRetry    = 0;
         this.captureRetry   = 0;
 
-        this.faceBLOB       = null
+        this.faceFILE       = null
 
     }
     async _init() {
@@ -1269,16 +1278,19 @@ class FaceRecognizer {
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
 
-            const blob = await new Promise(resolve => {
-                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.9)
+            const file = await new Promise(resolve => {
+                canvas.toBlob((blob) => {
+                    const file = new File([blob], this.STATE + "_")
+                    resolve(file)
+                }, 'image/jpeg', 0.9)
             })
 
             if (this.STATE == "CAPTURE") {
-                this.capture(blob)
+                this.capture(file)
                 return this.stop()      
             }
-            this.faceBLOB = blob
-            console.log(this.faceBLOB)
+            this.faceFILE = file
+            console.log(this.faceFILE)
             STATIC.toast("Sedang verifikasi wajah...", "info");
             TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", async () => this.verifyFace(imageData));
         } catch (error) {
@@ -1362,7 +1374,7 @@ class FaceRecognizer {
                     this.captureBtn.classList.add('dis-none');
                     STATIC.delay(2000, () => {
                         this._log("Wajah Cocok")
-                        this.success(this.faceBLOB)
+                        this.success(this.faceFILE)
                         this.matchedBox.classList.add("dis-none");
                         this.unmatchedBox.classList.add("dis-none");
                     })  
@@ -1398,7 +1410,6 @@ class FaceRecognizer {
                 STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
             });
         } finally {
-            //this.faceBLOB = null
             this._log("Verify End")
             return this.verifyRetry >= 3 && TTS.speak("Gagal verifikasi wajah setelah 3 kali percobaan", () => {
                 this.captureBtn.classList.add('dis-none');
@@ -1442,7 +1453,7 @@ class FaceRecognizer {
         this.verifyRetry    = 0;
         this.captureRetry   = 0;
 
-        this.faceBLOB       = null
+        this.faceFILE       = null
         this.captureBLOB    = null
     }
     _log(msg) {
