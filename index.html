@@ -103,6 +103,13 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="capture-notif" class="dis-none align-center absolute-top w-100 h-100 fz-20 grid-center">
+                    <div>
+                        <i class="fas fa-triangle-exclamation fz-40"></i>
+                        <span class="fz-14 mt-2 bolder dis-block">Foto buram. Silahkan Ulangi!</span>   
+                    </div>
+                </div>
             </div>
             <div id="data-driver" class="bolder uppercase">
                 <div class="data-left h-100 grid-center">
@@ -130,46 +137,40 @@
         </div>
     </div>
 
-    <div class="content grid-center p-15 hidden realtive dis-none" id="capture">
-        <div id="capture-box" class="clr-white grid-center relative w-100 h-100 borad-15 hidden">
-            <video id="capture-cam"></video>
-            <h3 class="absolute-top uppercase fz-30">Capture</h3>
-            <div id="capture-btn" class="dis-none grid-center"><i class="fas fa-camera fz-40"></i></div>
-            <div id="capture-preview-box" class="dis-none w-100 h-100 absolute-top p-15">
-                <div class="capture-previewer w-100 h-100 relative hidden borad-10">
-                    <img class="w-100 h-100 absolute-top" alt="" id="capture-image">
+    <div class="content grid-center p-20 clr-white dis-none" id="bbm-form">
+        <div>
+            <div id="bbm" class="m-auto w-100 grid-center">
+                <span class="dis-block align-center fz-12 mb-1 bolder">Pilih Jenis BBM</span>
+                <div class="bbm-type align-center gap-10 mt-1 fz-24 br-white bolder">
+                    <div class="bbm-type-btn">Dexlite</div>
+                    <div class="hr white mb-2 mt-2"></div>
+                    <div class="bbm-type-btn">Pertamax</div>
                 </div>
             </div>
-            <div id="capture-notif" class="dis-none align-center absolute-top w-100 h-100 fz-20 grid-center">
-                <div>
-                    <i class="fas fa-triangle-exclamation fz-40"></i>
-                    <span class="fz-14 mt-2 bolder dis-block">Foto buram. Silahkan Ulangi!</span>   
+            <div id="liter" class="dis-none relative">
+                <span class="dis-block align-center fz-12 mb-3 bolder">Pilih Jumlah Liter</span>
+                <div class="hr white mb-2 mt-2 dis-none"></div>  
+                <div class="liter-count flex-center align-center gap-10 mt-1 fz-24 br-white">
+                    <span id="liter3">3</span>|
+                    <span id="liter6">6</span>
+                    <span id="liter20">20</span>
+                    <span id="liter11">11</span>|
+                    <span id="liter22">22</span>
                 </div>
             </div>
+            
+            <div class="chosen w-100 p-10 dis-none absolute-bottom bolder" id="the-chosen">
+                <div class="bbm-type-btn chosen mb-3 m-auto " id="bbm-chosen-type"></div>
+                <div class="bbm-type-btn chosen mb-3 m-auto grid-center" id="bbm-chosen-liter"></div>
+                <div class="hr white"></div>
+                <div class="bbm-type-btn chosen m-auto uppercase" id="bbm-save">
+                    Simpan <i class="fas fa-save"></i>
+                </div>
+            </div>  
+            
+            <span class="dis-block m-auto w-100 align-center mt-5 fz-14 dis-none uppercase bolder" id="change">reset <i class="fas fa-recycle"></i></span>
         </div>
-    </div>
-
-    <div class="content grid-center p-20 clr-white" id="bbm-form">
-        <div id="bbm" class="">
-            <span class="dis-block align-center fz-12 mb-3 bolder">Pilih Jenis BBM</span>
-            <div class="bbm-type align-center gap-10 mt-1 fz-24 br-white bolder">
-                <div class="bbm-type-btn">Dexlite</div>
-                <div class="hr white mb-2 mt-2"></div>
-                <div class="bbm-type-btn">Pertamax</div>
-            </div>
-        </div>
-        <div id="liter" class=" relative">
-            <div class="bbm-type-btn chosen mb-3 m-auto" id="bbm-chosen-type">Pertamax</div>
-            <span class="dis-block align-center fz-12 mb-3 bolder">Pilih Jumlah Liter</span>
-            <div class="hr white mb-2 mt-2"></div>  
-            <div class="liter-count flex-center align-center gap-10 mt-1 fz-24 br-white">
-                <span id="liter3">3</span>|
-                <span id="liter6">6</span>
-                <span id="liter20">20</span>
-                <span id="liter11">11</span>|
-                <span id="liter22">22</span>
-            </div>
-        </div>
+        
     </div>
 
     <div class="content grid-center p-20 dis-none" id="verify">
@@ -203,15 +204,15 @@
     <div id="toast" class="">Toast text</div>
 
     
-<!-- Harus di atas app.js -->
-
-<script defer src="https://unpkg.com/html5-qrcode@2.3.7/html5-qrcode.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.js"></script>
-
-<script src="./js/config.js"></script>
-<script src="./js/app.js"></script>
 
 
+
+
+
+    <script defer src="./js/qr-code.js"></script>
+    <script defer src="./js/human.js"></script>
+    <script defer src="./js/config.js"></script>
+    <script defer src="./js/app.js"></script>
 
 </body>
 </html>

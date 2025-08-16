@@ -4,16 +4,21 @@ class AppController {
         this.connect    = new connection(this);
         this.request    = new RequestManager(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
-        this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this));
-        this.capture    = new Capture(this, this._handleCapture.bind(this))
+        this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this), this._handleCaptureSuccess.bind(this));
+        this.formbbm    = new Form(this, this._handleFormSuccess.bind(this))
         this.DB         = new IndexedDBController();
         this.isStarting = true
         this.startAll   = false;
+        this.href       = window.location.href;
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev";
         this.DATA       = {
                 NOLAMBUNG   : null,
                 FACE        : null,
                 CAPTURE     : null,
+                BBM         : {
+                    type    : null,
+                    liter   : null
+                },
                 start       : null,
                 end         : null,
                 sent        : null,
@@ -35,42 +40,17 @@ class AppController {
                 }
             });
             
-            //await STATIC.delay(1500, async () => { await this.face._init()})
-            await STATIC.delay(500, async () => { await this.connect.start()})
-            /* await this.DB.init({
-                drivers : {
-                    options : {keyPath : 'ID'},
-                    indexes : [
-                            { keyPath : 'NAMA',     unique : true}, // basic
-                            { keyPath : 'NOLAMBUNG',unique : true}, // basic
-                            { keyPath : 'BIDANG'} , // basic
-                            { keyPath : 'CODE'}, // basic
-                            { keyPath : 'LITER'} // basic
-                        ]
-                },
-                trx : {
-                    options : { keyPath : 'TRXID'},
-                    indexes : [
-                            { keyPath : 'TRXID',    unique : true}, // basic
-                            { keyPath : 'BIDANG'}, // basic
-                            { keyPath : 'DATE'} // basic
-                        ]
-                },
-                config : {
-                    options : { keyPath : 'TYPE'},
-                    indexes : [
-                            { keyPath : 'TYPE'}
-                        ]
-                }
-            }); */
-            
-            STATIC.delay(500, async() => {
+            await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(1500, async () => { await this.connect.start()})
+
+            STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
                         await STATIC.delay(3000, () => {
                             document.querySelector("#network").classList.add("dis-none")
                             document.querySelector("#network i").className = ""
                             STATIC.changeContent("home")
+                            this.log("ChangeContent : HOME")
                         })
                     })
                 })
@@ -90,23 +70,28 @@ class AppController {
                 ttsUnlocked = true;
             }
         } catch (err) {
-            console.error("Error in AppController init:", err);
+            console.error("[ERROR AppCTRL init] " +  err.message);
             STATIC.toast("Gagal memulai aplikasi: " + err.message, "error");
             this.isStarting = false
         }
     }
     async start() {
         this.startAll = true
-        return STATIC.changeContent("capture")
-        this.DATA = {
-            NOLAMBUNG: null,
-            FACE: null,
-            CAPTURE: null,
-            start: null,
-            end: null,
-            sent: null
+        STATIC.changeContent("scan")
+        this.DATA       = {
+            NOLAMBUNG   : null,
+            FACE        : null,
+            CAPTURE     : null,
+            BBM         : {
+                type    : null,
+                liter   : null
+            },
+            start       : null,
+            end         : null,
+            sent        : null,
+            DRIVER      : null
         }
-        await this.qrScanner.start()
+        //await this.qrScanner.start()
         await this.qrScanner._requestData("A-001");
     }
     stop() {
@@ -115,35 +100,15 @@ class AppController {
         this.connect.pause()
         this.capture.stop()
     }
-    async _handleCapture(blob) {
-        STATIC.loaderRun('...')
-        this.DATA.CAPTURE = blob
-        await STATIC.delay(3000, () => this.changeContent(''))
-    }
-    async _handleFaceSuccess(blob) {
-        this.DATA.FACE = blob
-        await STATIC.delay(3000, () => {
-            STATIC.loaderStop()
-            this.BBMCollect()
-        })
-    }
-    _handleFaceFailed(data) {
-        STATIC.verifyController({
-            status      : "denied",
-            head        : data.head,
-            text        : data.text,
-            callback    : data.callback
-        })
-    }
     async _handleQRSuccess(param) {
         const data = param.data
         //console.log("QR Success : ", data)
         
         this.DATA.NOLAMBUNG = data.NOLAMBUNG
-        thid.DATA.DRIVER = data
+        this.DATA.DRIVER = data
         
         STATIC.loaderRun("Write Data")
-        document.querySelector("img#compare-photo").src         = "./driver/" + data.PATH
+        document.querySelector("img#compare-photo").src         = this.href + "/driver/" + data.PATH
         document.querySelector("#nama-driver").textContent      = data.NAMA
         document.querySelector("#nopol-driver").textContent     = data.NOPOL
         document.querySelector("#nolambung-driver").textContent = data.NOLAMBUNG
@@ -175,6 +140,29 @@ class AppController {
             this.qrScanner.start()
         }))
     }
+    async _handleFaceSuccess(blob) {
+        this.DATA.FACE = blob
+        this.face.runCapture(this.DATA.DRIVER.KEND)
+    }
+    _handleFaceFailed(data) {
+        STATIC.verifyController({
+            status      : "denied",
+            head        : data.head,
+            text        : data.text,
+            callback    : data.callback
+        })
+    }
+    async _handleCaptureSuccess(blob) {
+        STATIC.loaderRun('...')
+        this.DATA.CAPTURE = blob
+        await STATIC.delay(3000, () => this.changeContent(''))
+    }
+    async _handleFormSuccess(bbm){
+
+    }
+    log(param) {
+        console.log("[AppCTRL] " + param)
+    }
     
 }
 
@@ -199,28 +187,24 @@ class connection {
         this.networkBox = document.querySelector('#network')
         this.connecting = document.querySelector('#connecting')
     }
-
     async start() {
         if (this.isRunning) return;
         STATIC.loaderRun("Connecting...");
         this.isRunning = true;
-        console.log("[PingSimple] Ping started.");
+        this.log("Ping started.");
         this.pingText.classList.remove('dis-none')
         this.loop();
     }
-    
     pause () {
         this.isRunning = false;
         this.pingText.classList.add('dis-none')
-        console.log("[PingSimple] Ping paused.");
+        this.log("Ping paused.");
     }
-
     resume() {
         this.isRunning = true;
         this.pingText.classList.remove('dis-none')
-        console.log("[PingSimple] Ping resumed.");
+        this.log("Ping resumed.");
     }
-
     async loop() {
         while (this.isRunning) {
             this.pingCycle --
@@ -233,14 +217,14 @@ class connection {
                     const ltx = Math.round(performance.now() - start);
                     this.pingText.textContent  = ltx.toLocaleString() + " ms";
                     this.pingText.style.color  = ltx < this.standart ? 'limegreen' : 'red';
-                }, 500)
+                }, 300)
             try {
                 const res   = await fetch(this.url, {cache: "no-store"})
                 latency     = Math.round(performance.now() - start);
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 status = (latency < this.standart) ? 'good' : 'bad'
             } catch (err) {
-                console.warn('Error : ' + err)
+                console.warn('Error : ' + err.message)
                 latency     = Math.round(performance.now() - start);
                 status      = 'failed'
             }
@@ -256,16 +240,20 @@ class connection {
             }
         }
     }
-    
     controller(array) {
         if(STATIC.count(array, 'failed') >= 1) this.state = false
         else if (STATIC.count(array, 'bad') >= 3 && !this.state) this.connecting.classList.remove('dis-none')
         else this.state = true
         localStorage.setItem('connection', JSON.stringify(this.state))
     }
-
-    isOnLine() {
+    async isOnLine() {
+        this.start()
+        await STATIC.delay(1000, ()=> this.pause())
         return JSON.parse(localStorage.getItem("connection"))
+    }
+
+    log(param) {
+        console.log("[Connection]", param)
     }
 }
 
@@ -339,7 +327,7 @@ class STATIC {
     }
     static isOnlineUI(callback = ""){
         const online = localStorage.getItem("connection")
-        console.log(online)
+        console.log("[STATIC] isOnline : " + online)
         document.querySelector("#network").classList.remove("dis-none")
         if(online == "true") {
             document.querySelector("#network i").className = "fas fa-wifi fz-40 relative network-icon clr-green br-green online-icon"
@@ -434,9 +422,8 @@ class RequestManager {
     }
 
     // ====== PUBLIC ======
-    isOnline() {
-        return true
-        this.appCTRL.connect.isOnLine();
+    async isOnline() {
+        return await this.appCTRL.connect.isOnLine();
     }
 
     _log() { 
@@ -459,8 +446,9 @@ class RequestManager {
 
         var base = this._requireBaseURL();                 // <- perbaikan utama
         var url  = this._joinURL(base, path);
-
-        if (!this.isOnline()) {
+        var isOnLine = await this.isOnline()
+        //console.log(isOnLine, "BEN")
+        if (!isOnLine) {
             var offlineRes = this._makeResult(false, "OFFLINE", null, {
                 code: "OFFLINE",
                 message: "Tidak ada koneksi internet."
@@ -469,6 +457,8 @@ class RequestManager {
             this._safeToast("error", "Perangkat sedang offline!");
             return offlineRes;
         }
+        STATIC.loaderRun("Sending Request")
+        this._log("Sending Request")
 
         if (this.deferWhenHidden && typeof document !== "undefined" && document.hidden) {
             this._log("⏸️ Menunda POST karena tab hidden");
@@ -660,6 +650,7 @@ class RequestManager {
         if (name === "AbortError" || msg === "ABORTED") return "ABORTED";
         if (msg === "TIMEOUT") return "TIMEOUT";
         // Heuristik: kalau online tapi gagal, kemungkinan CORS; kalau offline, network error
+
         return (typeof navigator !== "undefined" && navigator.onLine) ? "CORS" : "NETWORK_ERROR";
     }
     _readableFetchError(err, code) {
@@ -747,6 +738,7 @@ class QRScanner {
         TTS.speak("Memulai kamera. Silakan scan QR kode Anda. Posisikan QR code di tengah kotak. Pastikan tak ada yang menghalangi")
         
         STATIC.toast("Memulai kamera...", "info");
+        this.log("Memulai kamera")
         this._showElement(this.regionEl);
         this._hideElement(this.restartBtn);
         this._showElement(this.scanGuide);
@@ -780,27 +772,26 @@ class QRScanner {
             )
             this.hasStarted = true;
         } catch (err) {
+            this.log("Error : " + err.message)
             STATIC.alert('#camera-content', 'red', 'Scanner Error', err.message || "Gagal membuka kamera")
             this.isRunning = false;
-            this.stop();
+            //this.stop();
             console.error("QRScanner start error:", err.message);
         } finally {
             this.restartBtn.onclick = async () => await this.start();
         }
     }
     async stop() {
-        console.log('QR Stop')
         this._clearCountdown();
         this._hideElement(this.scanGuide);
         if(this.hasStarted) this._showElement(this.restartBtn);
-
         if (this.qrCodeScanner) {
             try {
                 await this.qrCodeScanner.stop();
                 await this.qrCodeScanner.clear();
             } catch (err) {
-                STATIC.alert('#camera-conent', 'red', 'Scanner Error', err.message)
-                console.warn("QRScanner stop error:", err.message);
+                STATIC.alert('#camera-content', 'red', 'Scanner Error', err.message)
+                this.log("QRScanner stop error:", err.message);
             }
         }
 
@@ -812,6 +803,7 @@ class QRScanner {
         this.isPaused       = false;
         this.isVerify       = false;
         this.falseCount     = 0
+        this.log('STOP')
     }
     async pause() {
         if (this.qrCodeScanner && this.isScanning && !this.isPaused) {
@@ -927,17 +919,23 @@ class QRScanner {
             type    : 'getDriver',
             code    : code
         })
+        
         STATIC.loaderStop()
-        if (post.data.confirm) return this.onSuccess(post.data)
+
         if (!post.confirm) return await this._scanWarn({
             head    : post.error.code,
             text    : post.error.message
         }, 5000)
+
         if (!post.data.confirm) return this.onFailed({
             head    : post.data.status,
             text    : post.data.msg,
             data    : post
         })
+
+        if (post.data.confirm) return this.onSuccess(post.data)
+        
+        
     }
     async _scanWarn(data, timeout = 2500) {
         TTS.speak(data.text, () => {
@@ -993,11 +991,17 @@ class QRScanner {
     _errorUI(head, text, ) {
         
     }
+    log(param) {
+        console.log("[QRScanner] " + param)
+    }
 }
 
 class FaceRecognizer {
-    constructor (main, onSuccess, onFailure) {
-        this.appCTRL        = main
+    constructor (main, onSuccess, onFailure, onCapture) {
+        this.appCTRL        = main;
+
+        this.STATE          = "FACE"
+
         this.videoElement   = document.querySelector("#face-video");
         this.previewBox     = document.querySelector('#face-prev-box');
         this.previewer      = document.querySelector('#face-preview');
@@ -1005,8 +1009,10 @@ class FaceRecognizer {
         this.targetImage    = document.querySelector("#compare-photo");
         this.unmatchedBox   = document.querySelector("#unmatched-box");
         this.matchedBox     = document.querySelector("#matched-box");
+
         this.success        = onSuccess;
         this.failed         = onFailure;
+        this.capture        = onCapture;
 
         this.targetEmbedd   = null;
         this.targetReady    = false;
@@ -1018,10 +1024,13 @@ class FaceRecognizer {
         this.cameraReady    = false;
         this.setupRetry     = 0;
         this.verifyRetry    = 0;
-        this.captureRetry   = 0
+        this.captureRetry   = 0;
+
+        this.notifCapt      = document.querySelector('#capture-notif i')
     }
     async _init() {
         STATIC.loaderRun("Load Human JS...")
+        this._log("Load Script")
         let error = ""
         try {
             const HumanLib = window.Human?.Human || window.Human;
@@ -1117,6 +1126,7 @@ class FaceRecognizer {
     }
     async loadTargetEmbedd() {
         STATIC.loaderRun('Get target embedding...')
+        this._log('Get target embedding...')
         if (!this.targetImage || !this.human) {
             this._log("Target image atau Human belum siap");
             return this.targetReady = false;
@@ -1195,6 +1205,7 @@ class FaceRecognizer {
     }
     _startCountdown(callback) {
         TTS.stop()
+        this._log("CountDown Start")
         let counter         = 3;
         const overlay       = document.createElement("div");
         overlay.className   = "countdown-overlay";
@@ -1207,14 +1218,16 @@ class FaceRecognizer {
             if( counter > 0) return overlay.textContent = counter;
             clearInterval(interval);
             overlay.remove();
-            this.captureAndVerify();
+            this._log("CountDown End");
+            return this.captureAndVerify();
         }, 1000);
     }
     captureAndVerify() {
+        this._log("Capture")
         try {
             const canvas    = document.createElement("canvas"),
                 context     = canvas.getContext("2d", { willReadFrequently: true }),
-                video       = this.videoElement
+                video       = this.videoElement;
 
             canvas.width    = video.videoWidth;
             canvas.height   = video.videoHeight;
@@ -1238,11 +1251,19 @@ class FaceRecognizer {
             // Tampilkan preview
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
+
+            if (this.STATE == "CAPTURE") {
+                canvas.toBlob((blob) => {
+                    this.captureBlob = blob
+                }, 'image/jpeg', 0.9)
+                return this.capture()
+            }
             STATIC.toast("Sedang verifikasi wajah...", "info");
             TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", () => {
                 canvas.toBlob((blob) => {
                     this.faceBLOB = blob
                 }, 'image/jpeg', 0.9)
+                this._log("Start Verify")
                 return this.verifyFace(imageData);
             });
         } catch (error) {
@@ -1319,12 +1340,15 @@ class FaceRecognizer {
                 this._log("Distance antara wajah: " + distance);
 
                 if (distance >= 0.55) return TTS.speak("Verifikasi wajah berhasil", () => {
-                    //STATIC.toast("Wajah cocok ✅", "success");
                     this.matchedBox.classList.remove("dis-none");
-                    this.stop();
                     this.previewBox.classList.add("dis-none");
                     this.captureBtn.classList.add('dis-none');
-                    setTimeout(() => this.success(this.faceBLOB), 500)    
+                    STATIC.delay(2000, () => {
+                        this._log("Wajah Cocok")
+                        this.success(this.faceBLOB)
+                        this.matchedBox.classList.add("dis-none");
+                        this.unmatchedBox.classList.add("dis-none");
+                    })  
                 });
                 else if (distance < 0.55) TTS.speak(
                     "Wajah tidak cocok" + 
@@ -1349,7 +1373,6 @@ class FaceRecognizer {
                     STATIC.toast("Terjadi kesalahan saat verifikasi wajah", "error");
                 })
             );
-
         } catch (error) {
             return this.verifyRetry ++ <= 1 && TTS.speak("Terjadi kesalahan saat verifikasi wajah", () => {
                 this.previewBox.classList.add("dis-none");
@@ -1359,6 +1382,7 @@ class FaceRecognizer {
             });
         } finally {
             this.faceBLOB = null
+            this._log("Verify End")
             return this.verifyRetry >= 3 && TTS.speak("Gagal verifikasi wajah setelah 3 kali percobaan", () => {
                 this.captureBtn.classList.add('dis-none');
                 this.previewBox.classList.add('dis-none');
@@ -1390,159 +1414,69 @@ class FaceRecognizer {
             console.error("❌ Gagal stop Human.js:", err);
         }
     }
-    _log(msg) {console.log("[FaceRecognizer]", msg);}
-    errorHandle(data) {
-        
+    _log(msg) {
+        console.log("[FaceRecognizer]", msg)
+    }
+    runCapture (data) {
+        this.STATE = "CAPTURE"
+        this._log("Mengalihkan ke Capture")
+        this.captureBtn.classList.remove("dis-none")
+        this.targetImage.src = window.location.href + "/kendaraan/" + data
+        //console.log("Data Driver", data)
     }
 }
 
-class Capture {
-    constructor (main, success) {
-        this.appCTRL    = main
-        this.video      = document.querySelector('#capture-cam')
-        this.button     = document.querySelector('#capture-btn')
-        this.icon       = document.querySelector('#capture-notif i')
-        this.text       = document.querySelector('#capture-notif span')
-        this.preview    = document.querySelector('#capture-preview-box')
-        this.image      = document.querySelector('#capture-image')
-        this.ready      = false
-        this.success    = success
-        
-    }
-    init () {
-        this.button.classList.add('dis-none')
-        this.preview.classList.add('dis-none')
-    }
-    async _setupCamera () {
-        STATIC.loaderRun("Memulai setup kamera...")
-        this._log("Memulai setup kamera...");
-        try {
-            const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-            
-            if (!hasMediaDevices) throw new Error("Perangkat tidak mendukung kamera.");
-    
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user" },
-                audio: false
-            }).catch(err => { throw new Error("Akses kamera ditolak atau tidak tersedia: " + err.message);});
-    
-            if (!stream) throw new Error("Stream kamera tidak tersedia.");
-            
-            this.video.srcObject = stream;
-            
-            await this.video.play().catch(err => { throw new Error("Gagal memutar video kamera: " + err.message)});
-
-            if (!this.video || this.video.readyState < 3) throw new Error("Kamera belum siap, mohon tunggu sebentar.");
-            
-            this._log("Kamera depan ready...");
-            this.preview.classList.add('dis-none')
-            this.image.src = ''
-            return this.ready = true;
-        } catch (err) {
-            this._log("Setup kamera gagal: " + err.message);
-            STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');            
-            return this.ready = false;
-        } finally {
-            await STATIC.delay(2500, ()=> STATIC.loaderStop())
-        }
-    }
-    async capture () {
-        try {
-            const canvas    = document.createElement("canvas"),
-                context     = canvas.getContext("2d", { willReadFrequently: true }),
-                video       = this.video
-
-            canvas.width    = video.videoWidth;
-            canvas.height   = video.videoHeight;
-
-            if (!canvas.width || !canvas.height) return TTS.speak("Gagal mengambil gambar dari kamera. Silahkan ulangi", () => {
-                this.previewBox.classList.add('dis-none');
-                this.captureBtn.classList.remove('dis-none');
-                STATIC.toast("Gagal mengambil gambar dari kamera. Silahkan ulangi", "error");
-            });
-
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            
-            const isBlur = this.appCTRL.face.isImageBlurred(imageData);
-            if (isBlur) return TTS.speak("Gambar buram, silakan ulangi", () => {
-                this.preview.classList.add('dis-none');
-                this.captureBtn.classList.remove('dis-none');
-                STATIC.toast("Gambar buram, silakan ulangi", "error");
-            });
-            
-            this.image.src = canvas.toDataURL('image/jpeg0')
-            this.preview.classList.remove('dis-none')
-            
-            let blox = null
-            canvas.toBlob((blob) => {
-                blox = blob
-            }, 'image/jpeg', 0.9)
-            
-            this.oncapture = false
-            return this.succes(blox1)
-        }
-        catch (e) {
-            return TTS.speak("Terjadi kesalahan saat mengambil gambar. Silahkan Coba lagi.", () => {
-                this.preview.classList.add('dis-none');
-                STATIC.toast("Terjadi kesalahan saat mengambil gambar", "error");
-                console.error("[Capture] Error saat capture:", error);
-            });
-        }
-    }
-    async start () {
-        try {
-            await this._setupCamera()
-            if (!this.ready) throw new Error("Kamera belum ready")
-            this.button.classList.add('dis-none')
-            this.preview.classList.add('dis-none')
-        }
-        catch (e){
-            this.button.classList.add('dis-none')
-            this.preview.classList.add('dis-none')
-            STATIC.toast('Error : ' + e.message)
-        }
-    }
-    _bindEvents() {
-        this.button.onclick = () => {
-            if (this.oncapture) return
-            this.button.classList.add('dis-none')
-            this.oncapture = true
-            this.capture()
-        }
-    }
-    async stop() {
-        try {
-            // Hentikan stream kamera
-            if (this.video && this.video.srcObject) {
-                const tracks = this.video.srcObject.getTracks();
-                tracks.forEach(track => track.stop());
-                this.video.srcObject = null;
-            }
-            // Clear canvas preview atau apapun yang sedang ditampilkan
-            const canvas = document.querySelector("canvas");
-            if (canvas) canvas.remove();
-        } catch (err) {
-            console.error("❌ Gagal stop Capture : ", err);
-        }
-    }
-}
 
 class Form {
     constructor (main, success) {
+        this.appCTRL    = main
+        this.success    = success
         this.bbmForm    = document.querySelector('#bbm')
-        this.literForm  = document.querySelector('#liter')
         this.types      = this.bbmForm.querySelectorAll('#bbm .bbm-type-btn')
-        this.chosen     = document.querySelector("#bbm-chosen-type")
+        this.literForm  = document.querySelector('#liter')
+        this.liters     = document.querySelectorAll(".liter-count span")
+        this.chosen     = document.querySelector("#the-chosen")
+        this.chosenType = document.querySelector("#bbm-chosen-type")
+        this.chosenLtr  = document.querySelector("#bbm-chosen-liter")
+        this.change     = document.querySelector("#change")
+        this.save       = document.querySelector("#bbm-save")
+        this.DATA       = {
+            type    : null,
+            liter   : null
+        }
     }
     init () {
-        this.types.forEach(btn => {
-            btn.onclick = () => {
-                this.chosen.textContent = btn.textContent
+        this.types.forEach(type => {
+            type.onclick = () => {
                 this.literForm.classList.remove("dis-none")
                 this.bbmForm.classList.add("dis-none")
+                this.change.classList.remove("dis-none")
+                this.chosenType.textContent = type.textContent
+                this.DATA.type = type.textContent
             }
         })
+        this.change.onclick = () => this.start()
+        this.liters.forEach(liter => {
+            liter.onclick = () => {
+                this.DATA.liter = liter.textContent
+                this.chosenLtr.textContent = liter.textContent + " Liter"
+                this.start()
+                this.chosen.classList.remove("dis-none")
+                this.chosen.classList.remove("absolute-bottom")
+                this.bbmForm.classList.add("dis-none")
+                this.change.classList.remove("dis-none")
+            }
+        })
+    }
+    start () {
+        this.bbmForm.classList.remove("dis-none")
+        this.chosen.classList.add("dis-none")
+        this.chosen.classList.add("absolute-bottom")
+        this.literForm.classList.add("dis-none")
+        this.change.classList.add("dis-none")
+    }
+    reset () {
+
     }
 }
 
@@ -1703,23 +1637,10 @@ class IndexedDBController {
 
 
 window.addEventListener("DOMContentLoaded", async () => {
-    //STATIC.loaderRun('Connecting...')
-    new Form()
-    return 
     var app = new AppController()
-    //await app._init();
+    await app._init();
     
     const videos = document.querySelectorAll("video");
-    /*await fetch("https://bbmctrl.dlhpambon2025.workers.dev?url=",{// + encodeURIComponent("https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec"),{
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            type : "getDriver",
-            code : "A-001"
-        })
-    })*/
     videos.forEach(video => {
         const stream = video.srcObject;
         if (stream && stream.getTracks) {
@@ -1733,8 +1654,8 @@ window.addEventListener("DOMContentLoaded", async () => {
         auth : "Bendhard16",
         code : 'X-016'
     }))
-    console.log(encript)
-    console.log(JSON.parse(atob(encript)))
+    //console.log(encript)
+    //console.log(JSON.parse(atob(encript)))
 });
 
 window.addEventListener('beforeunload', () => {
