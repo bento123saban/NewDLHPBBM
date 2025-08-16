@@ -25,6 +25,11 @@ class AppController {
             }
     }
     async _init () {
+
+        const rgstr = localStorage.getItem("rgstr")
+
+        if(rgstr !== "DLHP") return this.regis()
+
         this.isStarting = true
         try {
             STATIC.loaderRun("... Bendhard16 ...");
@@ -75,6 +80,9 @@ class AppController {
         }
     }
     async start() {
+        STATIC.resetDRV()
+        STATIC.resetPAYCODE()
+
         this.startAll = true
         STATIC.changeContent("scan")
         this.DATA       = {
@@ -106,6 +114,9 @@ class AppController {
         this.DATA.NOLAMBUNG = data.NOLAMBUNG
         this.DATA.DRIVER    = data
         this.DATA.TRXID     = Date.now()
+
+        STATIC.createPAYCODE()
+        STATIC.createDRV(data)        
         
         STATIC.loaderRun("Write Data")
         document.querySelector("img#compare-photo").src         = this.href + "/driver/" + data.PATH
@@ -168,23 +179,32 @@ class AppController {
         await STATIC.delay(500, () => STATIC.loaderRun("Sending Data..."))
         this.finall()
     }
-    finall() {
-        this.PAYCODE()
+    async finall() {
+        this.DATA.PAYCODE = STATIC.getPAYCODE()
         this.DATA.end = Date.now()
-        console.log(this.DATA)
+        this.log("Final Data : ", this.DATA)
+        STATIC.loaderRun("Sending Request : Final Data")
+        const newData = [
+            this.DATA.TRXID,
+            this.DATA.DRIVER.NOLAMBUNG + this.DATA.DRIVER.CODE,
+        ]
+        const post = await this.request.post({
+            type : "addData",
+            data : this.DATA
+        })
     }
     log(param) {
         console.log("[AppCTRL] ", param)
     }
-    PAYCODE () {
-        const now   = new Date(),
-            date    = now.getDate(),
-            month   = now.getMonth(),
-            year    = now.getFullYear().toString().slice(-2),
-            minute  = now.getMinutes()
-        return this.DATA.PAYCODE = `${date}${month}${year}${minute}`
+    regis () {
+        STATIC.changeContent("unregis")
+        document.querySelector("#regis").onkeyup = (e) => {
+            if (e.target.value.toUpperCase() != "DLHP") return
+            e.target.readOnly = true
+            localStorage.setItem("rgstr", "DLHP")
+            this._init()
+        }
     }
-    
 }
 
 class connection {
@@ -407,6 +427,32 @@ class STATIC {
         }
         const byteArray = new Uint8Array(byteNumbers);
         return new Blob([byteArray], {type: mimeType});
+    }
+    static createPAYCODE () {
+        const now   = new Date(),
+            date    = now.getDate() > 9 ? now.getDate() : "0" + now.getDate(),
+            month   = now.getMonth() + 1 > 9 ? now.getMonth() + 1 : "0" + (now.getMonth() + 1 ),
+            year    = now.getFullYear().toString().slice(-2),
+            minute  = now.getMinutes() > 9 ? now.getMinutes() : "0" + now.getMinutes(),
+            hours   = now.getHours() > 9 ? now.getHours() : "0" + now.getHours(),
+            payCode = `${year}${month}${date}.${hours}${minute}`
+
+        return localStorage.setItem("PAYCODE", payCode)
+    }
+    static resetPAYCODE() {
+        return localStorage.setItem("PAYCODE", "")
+    }
+    static getPAYCODE () {
+        return localStorage.getItem("PAYCODE")
+    }
+    static createDRV (data) {
+        return localStorage.setItem("DRV", JSON.stringify(data))
+    }
+    static getDRV () {
+        return JSON.parse(localStorage.getItem("DRV"))
+    }
+    static resetDRV () {
+        return localStorage.setItem("DRV", "")
     }
 }
 
@@ -1280,7 +1326,12 @@ class FaceRecognizer {
 
             const file = await new Promise(resolve => {
                 canvas.toBlob((blob) => {
-                    const file = new File([blob], this.STATE + "_")
+                    const DRV = STATIC.getDRV()
+                    const file = new File(
+                        [blob],
+                        `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.NOLAMBUNG} ${DRV.NAMA}.jpg`,
+                        {type : "image/jpeg"}
+                    )
                     resolve(file)
                 }, 'image/jpeg', 0.9)
             })
@@ -1290,7 +1341,6 @@ class FaceRecognizer {
                 return this.stop()      
             }
             this.faceFILE = file
-            console.log(this.faceFILE)
             STATIC.toast("Sedang verifikasi wajah...", "info");
             TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", async () => this.verifyFace(imageData));
         } catch (error) {
@@ -1454,7 +1504,6 @@ class FaceRecognizer {
         this.captureRetry   = 0;
 
         this.faceFILE       = null
-        this.captureBLOB    = null
     }
     _log(msg) {
         console.log("[FaceRecognizer]", msg)
@@ -1689,8 +1738,8 @@ class IndexedDBController {
     }
 }
 
-
 window.addEventListener("DOMContentLoaded", async () => {
+    localStorage.setItem("rgstr", "DLHPX")
     var app = new AppController()
     await app._init();
     

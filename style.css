@@ -513,3 +513,13 @@ body {
   backdrop-filter: blur(5px);
   z-index: 50;
 }
+
+#regis {
+  background-color: transparent;
+  border: none;
+  color: #fff;
+  outline: none;
+}
+#regis::placeholder {
+  color: #1f1f1f;
+}
