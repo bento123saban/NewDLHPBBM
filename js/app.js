@@ -26,6 +26,9 @@ class AppController {
     }
     async _init () {
 
+        STATIC.resetDRV()
+        STATIC.resetPAYCODE()
+
         const rgstr = localStorage.getItem("rgstr")
 
         if(rgstr !== "DLHP") return this.regis()
@@ -185,12 +188,19 @@ class AppController {
         this.log("Final Data : ", this.DATA)
         STATIC.loaderRun("Sending Request : Final Data")
         const newData = [
-            this.DATA.TRXID,
-            this.DATA.DRIVER.NOLAMBUNG + this.DATA.DRIVER.CODE,
+            this.DATA.TRXID, // 2 ID
+            this.DATA.DRIVER.NOLAMBUNG + this.DATA.DRIVER.CODE, // 3 Nolambung
+            this.DATA.DRIVER.NAMA, // 4 Nama  
+            new Date(), // 5 Date
+            this.DATA.FACE, // 6 Face
+            this.DATA.CAPTURE, // 7 Capture
+            this.DATA.BBM.type, // 8 BBM
+            this.DATA.BBM.liter, // 9 Liter
+            this.DEVICEID() // 10 Device
         ]
         const post = await this.request.post({
             type : "addData",
-            data : this.DATA
+            data : newData
         })
     }
     log(param) {
@@ -204,6 +214,9 @@ class AppController {
             localStorage.setItem("rgstr", "DLHP")
             this._init()
         }
+    }
+    DEVICEID(){
+        return localStorage.getItem("DVC")
     }
 }
 
@@ -1739,7 +1752,8 @@ class IndexedDBController {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-    localStorage.setItem("rgstr", "DLHPX")
+    localStorage.setItem("rgstr", "DLHP")
+    localStorage.setItem("DVC", "ACR_315")
     var app = new AppController()
     await app._init();
     
