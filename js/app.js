@@ -206,6 +206,15 @@ class AppController {
             type : "addTRX",
             data : newData
         })
+
+        if (post.confirm) {
+            this.log("Post Success", post)
+            STATIC.loaderStop()
+        } else {
+            this.log("Post Failed", post)
+            STATIC.toast("Gagal mengirim data: " + post.error.message, "error");
+        }
+        STATIC.loaderStop()
     }
     log(param) {
         console.log("[AppCTRL] ", param)
@@ -1310,7 +1319,7 @@ class FaceRecognizer {
             return this.captureAndVerify();
         }, 1000);
     }
-    async captureAndVerify() {
+    async captureAndVerify() {  
         this._log("Capture")
         const canvas    = document.createElement("canvas")
         try {
@@ -1335,7 +1344,9 @@ class FaceRecognizer {
                 this.captureBtn.classList.remove('dis-none');
                 STATIC.toast("Gambar buram, silakan ulangi", "error");
             });
-            
+
+            this._log("Gambar berhasil diambil dari kamera");
+
             // Tampilkan preview
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
@@ -1358,7 +1369,10 @@ class FaceRecognizer {
             }
             this.faceFILE = file
             STATIC.toast("Sedang verifikasi wajah...", "info");
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah", "", async () => this.verifyFace(imageData));
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", async () => {
+                console.log("Start verify face")
+                this.verifyFace(imageData)
+            });
         } catch (error) {
             this.captureRetry ++
             if (this.captureRetry >= 3) return typeof this.onFailure === "function" && this.onFailure({
