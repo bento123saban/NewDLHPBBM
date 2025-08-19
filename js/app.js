@@ -48,8 +48,8 @@ class AppController {
                 }
             });
             
-            //await STATIC.delay(1500, async () => { await this.face._init()})
-            //await STATIC.delay(1500, () => { this.formbbm.init()})
+            await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(1500, () => { this.formbbm.init()})
             await STATIC.delay(1500, async () => { await this.connect.start()})
 
             STATIC.delay(2500, async() => {
