@@ -537,7 +537,7 @@ class RequestManager {
         this.retryDelay         = 1000;      // ms
         this.timeoutMs          = 30000;    // ms
         this.deferWhenHidden    = false;
-        this.maxHiddenDeferMs   = 4000; 
+        this.maxHiddenDeferMs   = 4000;
         this.appCTRL            = main || null;
         this.baseURL            = (typeof STATIC !== "undefined" && STATIC.URL) ? STATIC.URL : "";
         var self = this;
