@@ -189,19 +189,19 @@ class AppController {
     async finall() {
         this.DATA.PAYCODE = STATIC.getPAYCODE()
         this.DATA.end = Date.now()
-        console.log("Final Data : ", this.DATA)
         STATIC.loaderRun("Sending Request : Final Data")
         const newData = [
             this.DATA.TRXID, // 2 ID
             this.DATA.DRIVER.ID + "-" + this.DATA.DRIVER.CODE, // 3 ID
             this.DATA.DRIVER.NAMA, // 4 Nama
             new Date(), // 5 Date
-            this.DATA.FACE, // 6 Face
-            this.DATA.CAPTURE, // 7 Capture
+            "face", //this.DATA.FACE, // 6 Face
+            "capture", //this.DATA.CAPTURE, // 7 Capture
             this.DATA.BBM.type, // 8 BBM
             this.DATA.BBM.liter, // 9 Liter
             this.DEVICEID() // 10 Device
         ]
+        console.log("Send data : ", newData)
         const post = await this.request.post({
             type : "addTRX",
             data : newData
@@ -1370,6 +1370,7 @@ class FaceRecognizer {
             this.previewBox.classList.remove('dis-none');
 
             const file = await new Promise((resolve, reject) => {
+                console.log("Membuat file dari canvas");
                 try {
                     canvas.toBlob(async (blob) => {
                         if (!blob) return reject(new Error("Canvas menghasilkan blob null"));
@@ -1397,7 +1398,7 @@ class FaceRecognizer {
             }
             this.faceFILE = file
             STATIC.toast("Sedang verifikasi wajah...", "info");
-            TTS.speak("Silakan menunggu, sedang verifikasi wajah", async () => {
+            TTS.speak("Silakan menunggu, sedang verifikasi wajah", () => {
                 console.log("Start verify face")
                 this.verifyFace(imageData)
             });
