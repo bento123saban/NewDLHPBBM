@@ -189,11 +189,11 @@ class AppController {
     async finall() {
         this.DATA.PAYCODE = STATIC.getPAYCODE()
         this.DATA.end = Date.now()
-        this.log("Final Data : ", this.DATA)
+        console.log("Final Data : ", this.DATA)
         STATIC.loaderRun("Sending Request : Final Data")
         const newData = [
             this.DATA.TRXID, // 2 ID
-            this.DATA.DRIVER.ID + this.DATA.DRIVER.CODE, // 3 ID
+            this.DATA.DRIVER.ID + "-" + this.DATA.DRIVER.CODE, // 3 ID
             this.DATA.DRIVER.NAMA, // 4 Nama
             new Date(), // 5 Date
             this.DATA.FACE, // 6 Face
@@ -480,6 +480,24 @@ class STATIC {
     static resetDRV () {
         return localStorage.setItem("DRV", "")
     }
+    static async blobToBase64(blob) {
+        if (!blob) throw new Error("Blob tidak valid");
+        return await new Promise((resolve, reject) => {
+            try {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const result = reader.result || "";
+                    const base64 = result.includes(",") ? result.split(",")[1] : result;
+                    resolve(base64);
+                };
+                reader.onerror = () => reject(new Error("Gagal membaca blob"));
+                reader.readAsDataURL(blob);
+            } catch (err) {
+                reject(err);
+            }
+        });
+    }
+
 }
 
 class TTS {
@@ -517,7 +535,7 @@ class RequestManager {
     constructor(main) {
         this.maxRetries         = 3;
         this.retryDelay         = 1000;      // ms
-        this.timeoutMs          = 15000;    // ms
+        this.timeoutMs          = 30000;    // ms
         this.deferWhenHidden    = false;
         this.maxHiddenDeferMs   = 4000; 
         this.appCTRL            = main || null;
@@ -1351,17 +1369,27 @@ class FaceRecognizer {
             this.previewer.src = canvas.toDataURL("image/jpeg");
             this.previewBox.classList.remove('dis-none');
 
-            const file = await new Promise(resolve => {
-                canvas.toBlob((blob) => {
-                    const DRV = STATIC.getDRV()
-                    const file = new File(
-                        [blob],
-                        `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.ID} ${DRV.NAMA}.jpg`,
-                        {type : "image/jpeg"}
-                    )
-                    resolve(file)
-                }, 'image/jpeg', 0.9)
-            })
+            const file = await new Promise((resolve, reject) => {
+                try {
+                    canvas.toBlob(async (blob) => {
+                        if (!blob) return reject(new Error("Canvas menghasilkan blob null"));
+                        try {
+                            const DRV = STATIC.getDRV();
+                            const base64 = await STATIC.blobToBase64(blob);
+                            resolve({
+                                nama   : `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.ID} ${DRV.NAMA}.jpg`,
+                                mime   : "image/jpeg",
+                                base64 : base64
+                            });
+                        } catch (err) {
+                            reject(err);
+                        }
+                    }, "image/jpeg", 0.9);
+                } catch (err) {
+                    reject(err);
+                }
+            });
+
 
             if (this.STATE == "CAPTURE") {
                 this.capture(file)
