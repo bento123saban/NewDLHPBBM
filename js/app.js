@@ -11,7 +11,7 @@ class AppController {
         this.startAll   = false;
         this.href       = window.location.href;
         this.URL        = "https://script.google.com/macros/s/AKfycbxa3Qod32FDY4w7MeSBy1fJmACtgtBwpCeQuinozvw2KuPC3iTawzPwCC1Mjr-QyBUtBA/exec"
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev"  //+ encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
                 ID          : null,
@@ -50,7 +50,7 @@ class AppController {
             
             //await STATIC.delay(1500, async () => { await this.face._init()})
             //await STATIC.delay(1500, () => { this.formbbm.init()})
-                await STATIC.delay(1500, async () => { await this.connect.start()})
+            await STATIC.delay(1500, async () => { await this.connect.start()})
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -113,18 +113,20 @@ class AppController {
         this.capture.stop()
     }
     async _handleQRSuccess(param) {
+        
         const data = param.data
+
+        //return console.log(typeof data.PHOTO)
         
         this.DATA.ID        = data.ID
         this.DATA.DRIVER    = data
         this.DATA.TRXID     = Date.now()
 
         STATIC.createPAYCODE()
-        STATIC.createDRV(data)
-        return console.log("RETURN", data)  
+        STATIC.createDRV(data) 
         
         STATIC.loaderRun("Write Data")
-        document.querySelector("img#compare-photo").src         = 
+        document.querySelector("img#compare-photo").src         = `data:${data.PHOTO.mime};base64,${data.PHOTO.blob}`
         document.querySelector("#nama-driver").textContent      = data.NAMA
         document.querySelector("#nopol-driver").textContent     = data.NOPOL
         document.querySelector("#nolambung-driver").textContent = data.ID
@@ -606,7 +608,6 @@ class RequestManager {
                 var parsed = await this._smartParseResponse(res);
 
                 if (res.ok) {
-                    console.log("Response Data:", parsed.data);
                     var okRes = this._makeResult(true, "SUCCESS", res.status, null, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
                     this._log("✅ Sukses:", okRes);
                     return okRes;
@@ -1026,7 +1027,6 @@ class QRScanner {
         })
         
         STATIC.loaderStop()
-        console.log("Post Data:", post)
 
         if (!post.confirm) return await this._scanWarn({
             head    : post.error.code,
@@ -1040,8 +1040,6 @@ class QRScanner {
         })
 
         if (post.data.confirm) return this.onSuccess(post.data)
-        
-        
     }
     async _scanWarn(data, timeout = 2500) {
         TTS.speak(data.text, () => {
@@ -1531,7 +1529,7 @@ class FaceRecognizer {
         this.STATE = "CAPTURE"
         this._log("Mengalihkan ke Capture")
         this.captureBtn.classList.remove("dis-none")
-        this.targetImage.src = window.location.href + "/kendaraan/" + data
+        this.targetImage.src = `data:${data.mime};base64,${data.blob}`
         //console.log("Data Driver", data)
         TTS.speak("Arahkan kamera ke kendaran untuk mengambil gambar. Pastikan jangan ada yang menghalangi.")
     }
@@ -1776,8 +1774,24 @@ window.addEventListener("DOMContentLoaded", async () => {
         auth : "Bendhard16",
         code : 'X-016'
     }))
-    //console.log(encript)
-    //console.log(JSON.parse(atob(encript)))
+    console.log(encript)
+    console.log(JSON.parse(atob(encript)))
+    return
+
+    const URL   = "https://script.google.com/macros/s/AKfycbzp3Wj2orUmn3yOP5xR2t7kYpPjOEVMI8-GytDWO8v71OqVKQU8QRvkOHqySmDQavIXcg/exec",
+    baseURL     = "https://bbmctrl.dlhpambon2025.workers.dev" // + encodeURIComponent(URL);
+
+    const post = await fetch(baseURL, {
+        method  : "POST",
+        headers : {
+            "Content-Type" : "application/json"
+        },
+        body    : JSON.stringify({
+            type    : "getDRV",
+            code    : "A-001"
+        })
+    }).then(res => res.json()).then(json => console.log(json)).catch(err => console.error("Error fetching data:", err));
+    
 });
 
 window.addEventListener('beforeunload', () => {
