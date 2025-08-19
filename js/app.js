@@ -10,10 +10,11 @@ class AppController {
         this.isStarting = true
         this.startAll   = false;
         this.href       = window.location.href;
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev";
+        this.URL        = "https://script.google.com/macros/s/AKfycbxa3Qod32FDY4w7MeSBy1fJmACtgtBwpCeQuinozvw2KuPC3iTawzPwCC1Mjr-QyBUtBA/exec"
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
-                NOLAMBUNG   : null,
+                ID          : null,
                 FACE        : null,
                 CAPTURE     : null,
                 BBM         : null,
@@ -47,9 +48,9 @@ class AppController {
                 }
             });
             
-            await STATIC.delay(1500, async () => { await this.face._init()})
-            await STATIC.delay(1500, () => { this.formbbm.init()})
-            await STATIC.delay(1500, async () => { await this.connect.start()})
+            //await STATIC.delay(1500, async () => { await this.face._init()})
+            //await STATIC.delay(1500, () => { this.formbbm.init()})
+                await STATIC.delay(1500, async () => { await this.connect.start()})
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -89,7 +90,7 @@ class AppController {
         this.startAll = true
         STATIC.changeContent("scan")
         this.DATA       = {
-            NOLAMBUNG   : null,
+            ID          : null,
             FACE        : null,
             CAPTURE     : null,
             BBM         : {
@@ -114,18 +115,19 @@ class AppController {
     async _handleQRSuccess(param) {
         const data = param.data
         
-        this.DATA.NOLAMBUNG = data.NOLAMBUNG
+        this.DATA.ID        = data.ID
         this.DATA.DRIVER    = data
         this.DATA.TRXID     = Date.now()
 
         STATIC.createPAYCODE()
-        STATIC.createDRV(data)        
+        STATIC.createDRV(data)
+        return console.log("RETURN", data)  
         
         STATIC.loaderRun("Write Data")
-        document.querySelector("img#compare-photo").src         = this.href + "/driver/" + data.PATH
+        document.querySelector("img#compare-photo").src         = 
         document.querySelector("#nama-driver").textContent      = data.NAMA
         document.querySelector("#nopol-driver").textContent     = data.NOPOL
-        document.querySelector("#nolambung-driver").textContent = data.NOLAMBUNG
+        document.querySelector("#nolambung-driver").textContent = data.ID
         document.querySelector("#kendaraan-driver").textContent = data.KENDARAAN
         document.querySelector("#data-confirm").classList.remove('dis-none')
         document.querySelector("#face-guide-line").classList.add('dis-none')
@@ -189,8 +191,8 @@ class AppController {
         STATIC.loaderRun("Sending Request : Final Data")
         const newData = [
             this.DATA.TRXID, // 2 ID
-            this.DATA.DRIVER.NOLAMBUNG + this.DATA.DRIVER.CODE, // 3 Nolambung
-            this.DATA.DRIVER.NAMA, // 4 Nama  
+            this.DATA.DRIVER.ID + this.DATA.DRIVER.CODE, // 3 ID
+            this.DATA.DRIVER.NAMA, // 4 Nama
             new Date(), // 5 Date
             this.DATA.FACE, // 6 Face
             this.DATA.CAPTURE, // 7 Capture
@@ -199,7 +201,7 @@ class AppController {
             this.DEVICEID() // 10 Device
         ]
         const post = await this.request.post({
-            type : "addData",
+            type : "addTRX",
             data : newData
         })
     }
@@ -547,7 +549,7 @@ class RequestManager {
 
         var base = this._requireBaseURL();                 // <- perbaikan utama
         var url  = this._joinURL(base, path);
-        var isOnLine = await this.isOnline()
+        var isOnLine = true //await this.isOnline()
         //console.log(isOnLine, "BEN")
         if (!isOnLine) {
             var offlineRes = this._makeResult(false, "OFFLINE", null, {
@@ -604,6 +606,7 @@ class RequestManager {
                 var parsed = await this._smartParseResponse(res);
 
                 if (res.ok) {
+                    console.log("Response Data:", parsed.data);
                     var okRes = this._makeResult(true, "SUCCESS", res.status, null, url, attempt, this._nowMs() - startAll, retried, requestId, parsed.data);
                     this._log("✅ Sukses:", okRes);
                     return okRes;
@@ -661,6 +664,7 @@ class RequestManager {
     }
     _requireBaseURL() {
         var u = this.URL;
+        console.log("Base URL:", u);
         if (!u) throw new Error("RequestManager.baseURL belum diset (AppController/baseURL kosong).");
         return u;
     }
@@ -1017,11 +1021,12 @@ class QRScanner {
         STATIC.loaderRun('Request Data')
         this.stop()
         const post =  await this.appCTRL.request.post({
-            type    : 'getDriver',
+            type    : "getDRV",
             code    : code
         })
         
         STATIC.loaderStop()
+        console.log("Post Data:", post)
 
         if (!post.confirm) return await this._scanWarn({
             head    : post.error.code,
@@ -1342,7 +1347,7 @@ class FaceRecognizer {
                     const DRV = STATIC.getDRV()
                     const file = new File(
                         [blob],
-                        `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.NOLAMBUNG} ${DRV.NAMA}.jpg`,
+                        `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.ID} ${DRV.NAMA}.jpg`,
                         {type : "image/jpeg"}
                     )
                     resolve(file)
