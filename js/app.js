@@ -1,13 +1,16 @@
 
 class AppController {
     constructor() {
+        this.ID         = null;
+        this.begin      = false;
         this.connect    = new connection(this);
         this.request    = new RequestManager(this);
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this), this._handleCaptureSuccess.bind(this));
         this.formbbm    = new Form(this, this._handleFormSuccess.bind(this))
-        this.DBVersion  = 2;
-        this.isStarting = true
+        this.DB         = new IndexedDBController();
+        this.device     = new Device(this);
+        this.isStarting = false;
         this.startAll   = false;
         this.href       = window.location.href;
         this.URL        = "https://script.google.com/macros/s/AKfycbwDDV_-AMH8Xb9qzdg_ujqb9haQAGfhePQVfiDOnf7soyb3X2W0SM_mPUgCSjRtb4-A/exec"
@@ -27,12 +30,9 @@ class AppController {
     }
     async _init () {
 
+        //return 
         STATIC.resetDRV()
         STATIC.resetPAYCODE()
-
-        const rgstr = localStorage.getItem("rgstr")
-
-        if(rgstr !== "DLHP") return this.regis()
 
         this.isStarting = true
         try {
@@ -48,31 +48,49 @@ class AppController {
                 }
             });
 
-            const DB = new IndexedDBController(this.DBVersion)
+
+            //await STATIC.delay(1500, () => { this.formbbm.init()})
+            //await STATIC.delay(1500, async () => { await this.face._init()})
+            //await STATIC.delay(1500, async () => { await this.connect.start()})
+            await STATIC.delay(1500, async () => { await this.DB.init({
+                    TRX : {
+                        options : { keyPath: "ID"},
+                        indexes : [{name : "data", keyPath : "data"}]
+                    },
+                    DRV : {
+                        options : { keyPath: "ID"},
+                        indexes : [
+                            {name : "NAMA",     keyPath : "NAMA"},
+                            {name : "CODE",     keyPath : "CODE"},
+                            {name : "BIDANG",   keyPath : "BIDANG"}
+                        ]
+                    },
+                    DVC : { 
+                        options : { keyPath: "ID"}
+                    },
+                    LST : {
+                        options : { keyPath: "ID"},
+                        indexes : [
+                            {name : "NAMA",         keyPath : "NAMA"},
+                            {name : "TIMESTAMP",    keyPath : "TIMESTAMP"}
+                        ]
+                    }
+                })
+            })
+
+            if (!this.DB.ready) return STATIC.verifyController({
+                head : "DB Init Error",
+                text : "Initializasi DB Gagal. DB tidak ready"
+            }).show()
             
-            await STATIC.delay(1500, () => { this.formbbm.init()})
-            await STATIC.delay(1500, async () => { await this.face._init()})
-            await STATIC.delay(1500, async () => { await this.connect.start()})
-            await STATIC.delay(1500, async () => { await DB.init({
-                TRX : {
-                    options : { keyPath: "paycode"},
-                    indexes : [{name : "data", keyPath : "data"}]
-                },
-                DRV : {
-                    options : { keyPath: "id"},
-                    indexes : [{name : "data", keyPath : "data"}]
-                },
-                DVC : {
-                    options : { keyPath: "id"},
-                    indexes : [{name : "data", keyPath : "data"}]
-                },
-                LST : {
-                    options : { keyPath: "id"},
-                    indexes : [{name : "data", keyPath : "data"}]
-                }
-            })})
+            const device = await this.device.get()
+            console.log("Device :", device)
 
-
+            if (!device) return STATIC.verifyController({
+                head : "Device Not Registered",
+                text : "Silahkan registrasi device terlebih dahulu."
+            }).show(() => STATIC.delay(3500, () => this.device.set()))
+            
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
@@ -107,6 +125,16 @@ class AppController {
     async start() {
         STATIC.resetDRV()
         STATIC.resetPAYCODE()
+
+        await this.DB.put("DVC", {
+            id      : "device",
+            nama    : "Aspire A315 - Ben",
+            auth    : Date.now(),
+            status  : "active"
+        })
+
+        const device = await this.DB.getAll("DVC")
+        console.log("Device :", device)
 
         this.startAll = true
         STATIC.changeContent("scan")
@@ -214,7 +242,7 @@ class AppController {
         const newData = [
             STATIC.getPAYCODE(), // 1 Paycode
             Date.now(), // 2 Timestamp
-            this.DATA.DRIVER.ID + " " + this.DATA.DRIVER.CODE, // 3 No Lambung
+            this.DATA.DRIVER.ID, // 3 No Lambung
             this.DATA.DRIVER.NAMA, // 4 Nama
             this.DATA.FACE, // 5 Face
             this.DATA.CAPTURE, // 6 Capture
@@ -1675,56 +1703,76 @@ class Form {
 class Device {
     constructor (main) {
         this.appCTRL    = main
-        this.DB         = this.main.DB
+        this.DB         = main.DB
+        this.save       = document.querySelector("#device-save")
+        this.input      = document.querySelector("#device-input")
     }
-    async getDevice() {
-        const device = await this.DB.getAll("DVC")
-        if (!device) return null
+    async get () {
+        const device = await this.DB.get("DVC", "device")
+        if (!device) return undefined
         return device
+    }
+    async set () {
+        STATIC.changeContent("device")
+        this.save.onclick = async () => {
+            const val = this.input.value.trim()
+            if (val.length <= 3) return STATIC.toast("Nama device minimal 6 karakter", "warning")
+            await this.DB.put("DVC", {
+                id      : "device",
+                nama    : val,
+                auth    : Date.now(),
+                status  : "active"
+            })
+            STATIC.toast("Device disimpan", "success")
+            this.appCTRL.DEVICE = val
+            this.appCTRL.init()
+        }
     }
 }
 
 class IndexedDBController {
-    constructor() {
+    constructor(version = 1) {
         this.dbName     = 'BBM';
-        this.version    = 2;
+        this.version    = version;
         this.db         = null;
         this.schema     = {};
-        
-        //console.log("[IndexedDB] Init DB : Version _" + this.version);
+        this.ready      = false;
     }
 
     async init(schema = {}) {
         console.log("[IndexedDB] Init DB : Versionx _" + this.version);
         this.schema = schema;
-        console.log("[IndexedDB] Schema:", schema);
+        console.log("[IndexedDB] Schema:", this.schema);
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
-
             request.onerror = (e) => {
                 console.error("[IndexedDB] Gagal buka DB:", e);
                 STATIC.toast("Gagal buka database", "error");
+                this.ready = false
                 reject(e);
             };
 
             request.onsuccess = (e) => {
                 this.db = e.target.result;
+                this.ready = true
                 STATIC.toast("Database siap ✅", "success");
                 resolve(this);
             };
             request.onupgradeneeded = (e) => {
                 console.log("[IndexedDB] Upgrade DB ke versi:", e.oldVersion, "→", e.newVersion);
                 this.db = e.target.result;
-                for (const storeName in schema) {
+                for (const storeName in this.schema) {
                     if (!this.db.objectStoreNames.contains(storeName)) {
                         const def = schema[storeName];
                         const store = this.db.createObjectStore(storeName, def.options || { keyPath: 'id' });
                         if (def.indexes && Array.isArray(def.indexes)) {
                             for (const idx of def.indexes) {
                                 store.createIndex(idx.name, idx.keyPath, idx.options || {});
+                                console.log(`[IndexedDB] Index '${idx.name}' dibuat pada store '${storeName}'.`);
                             }
                         }
                         console.log(`[IndexedDB] Store '${storeName}' dibuat.`);
+                        this.ready = true
                     }
                 }
             };
@@ -1847,7 +1895,6 @@ class IndexedDBController {
 window.addEventListener("DOMContentLoaded", async () => {
     localStorage.setItem("rgstr", "DLHP")
     localStorage.setItem("DVC", "ACR_315")
-    return new IndexedDBController().init()
     var app = new AppController()
     await app._init();
     
