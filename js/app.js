@@ -6,12 +6,12 @@ class AppController {
         this.qrScanner  = new QRScanner(this, this._handleQRSuccess.bind(this), this._handleQRFailed.bind(this));
         this.face       = new FaceRecognizer(this, this._handleFaceSuccess.bind(this), this._handleFaceFailed.bind(this), this._handleCaptureSuccess.bind(this));
         this.formbbm    = new Form(this, this._handleFormSuccess.bind(this))
-        this.DB         = new IndexedDBController();
+        this.DBVersion  = 2;
         this.isStarting = true
         this.startAll   = false;
         this.href       = window.location.href;
-        this.URL        = "https://script.google.com/macros/s/AKfycbxa3Qod32FDY4w7MeSBy1fJmACtgtBwpCeQuinozvw2KuPC3iTawzPwCC1Mjr-QyBUtBA/exec"
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev"  //+ encodeURIComponent(this.URL);
+        this.URL        = "https://script.google.com/macros/s/AKfycbwDDV_-AMH8Xb9qzdg_ujqb9haQAGfhePQVfiDOnf7soyb3X2W0SM_mPUgCSjRtb4-A/exec"
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
                 ID          : null,
@@ -47,10 +47,31 @@ class AppController {
                     video.srcObject = null;
                 }
             });
+
+            const DB = new IndexedDBController(this.DBVersion)
             
-            await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(1500, () => { this.formbbm.init()})
+            await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(1500, async () => { await this.connect.start()})
+            await STATIC.delay(1500, async () => { await DB.init({
+                TRX : {
+                    options : { keyPath: "paycode"},
+                    indexes : [{name : "data", keyPath : "data"}]
+                },
+                DRV : {
+                    options : { keyPath: "id"},
+                    indexes : [{name : "data", keyPath : "data"}]
+                },
+                DVC : {
+                    options : { keyPath: "id"},
+                    indexes : [{name : "data", keyPath : "data"}]
+                },
+                LST : {
+                    options : { keyPath: "id"},
+                    indexes : [{name : "data", keyPath : "data"}]
+                }
+            })})
+
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -67,11 +88,11 @@ class AppController {
             })
 
             let ttsUnlocked = false;
-            document.querySelector("#start").onclick = () => {
+            document.querySelector("#start").onclick = async () => {
                 if (this.begin) return
                 if (ttsUnlocked) {
                     this.begin = true
-                    return this.start()
+                    return await this.start()
                 }
                 const dummy = new SpeechSynthesisUtterance(" ");
                 window.speechSynthesis.speak(dummy);
@@ -191,15 +212,15 @@ class AppController {
         this.DATA.end = Date.now()
         STATIC.loaderRun("Sending Request : Final Data")
         const newData = [
-            this.DATA.TRXID, // 2 ID
-            this.DATA.DRIVER.ID + "-" + this.DATA.DRIVER.CODE, // 3 ID
+            STATIC.getPAYCODE(), // 1 Paycode
+            Date.now(), // 2 Timestamp
+            this.DATA.DRIVER.ID + " " + this.DATA.DRIVER.CODE, // 3 No Lambung
             this.DATA.DRIVER.NAMA, // 4 Nama
-            new Date(), // 5 Date
-            "face", //this.DATA.FACE, // 6 Face
-            "capture", //this.DATA.CAPTURE, // 7 Capture
-            this.DATA.BBM.type, // 8 BBM
-            this.DATA.BBM.liter, // 9 Liter
-            this.DEVICEID() // 10 Device
+            this.DATA.FACE, // 5 Face
+            this.DATA.CAPTURE, // 6 Capture
+            this.DATA.BBM.type, // 7 BBM
+            this.DATA.BBM.liter, // 8 Liter
+            this.DEVICEID() // 9 Device
         ]
         console.log("Send data : ", newData)
         const post = await this.request.post({
@@ -210,6 +231,15 @@ class AppController {
         if (post.confirm) {
             this.log("Post Success", post)
             STATIC.loaderStop()
+            const verify = STATIC.verifyController({
+                head : "Data Terkirim",
+                text : "Data berhasil dikirim ke server."
+            })
+
+            verify.show(() => STATIC.delay(3000, () => verify.clear(() => {
+                this.begin = false
+                STATIC.changeContent("home")
+            })))
         } else {
             this.log("Post Failed", post)
             STATIC.toast("Gagal mengirim data: " + post.error.message, "error");
@@ -1642,16 +1672,32 @@ class Form {
     }
 }
 
+class Device {
+    constructor (main) {
+        this.appCTRL    = main
+        this.DB         = this.main.DB
+    }
+    async getDevice() {
+        const device = await this.DB.getAll("DVC")
+        if (!device) return null
+        return device
+    }
+}
+
 class IndexedDBController {
-    constructor(version = 1) {
+    constructor() {
         this.dbName     = 'BBM';
-        this.version    = version;
+        this.version    = 2;
         this.db         = null;
         this.schema     = {};
+        
+        //console.log("[IndexedDB] Init DB : Version _" + this.version);
     }
 
     async init(schema = {}) {
+        console.log("[IndexedDB] Init DB : Versionx _" + this.version);
         this.schema = schema;
+        console.log("[IndexedDB] Schema:", schema);
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
@@ -1667,6 +1713,7 @@ class IndexedDBController {
                 resolve(this);
             };
             request.onupgradeneeded = (e) => {
+                console.log("[IndexedDB] Upgrade DB ke versi:", e.oldVersion, "→", e.newVersion);
                 this.db = e.target.result;
                 for (const storeName in schema) {
                     if (!this.db.objectStoreNames.contains(storeName)) {
@@ -1800,6 +1847,7 @@ class IndexedDBController {
 window.addEventListener("DOMContentLoaded", async () => {
     localStorage.setItem("rgstr", "DLHP")
     localStorage.setItem("DVC", "ACR_315")
+    return new IndexedDBController().init()
     var app = new AppController()
     await app._init();
     
@@ -1819,22 +1867,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     }))
     console.log(encript)
     console.log(JSON.parse(atob(encript)))
-    return
-
-    const URL   = "https://script.google.com/macros/s/AKfycbzp3Wj2orUmn3yOP5xR2t7kYpPjOEVMI8-GytDWO8v71OqVKQU8QRvkOHqySmDQavIXcg/exec",
-    baseURL     = "https://bbmctrl.dlhpambon2025.workers.dev" // + encodeURIComponent(URL);
-
-    const post = await fetch(baseURL, {
-        method  : "POST",
-        headers : {
-            "Content-Type" : "application/json"
-        },
-        body    : JSON.stringify({
-            type    : "getDRV",
-            code    : "A-001"
-        })
-    }).then(res => res.json()).then(json => console.log(json)).catch(err => console.error("Error fetching data:", err));
-    
 });
 
 window.addEventListener('beforeunload', () => {
