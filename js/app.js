@@ -79,17 +79,18 @@ class AppController {
             })
 
             if (!this.DB.ready) return STATIC.verifyController({
-                head : "DB Init Error",
-                text : "Initializasi DB Gagal. DB tidak ready"
-            }).show()
-            
-            const device = await this.device.get()
-            console.log("Device :", device)
+                status  : "denied",
+                head    : "DB Init Error",
+                text    : "Initializasi DB Gagal. DB tidak ready"
+            }).show()   
 
-            if (!device) return STATIC.verifyController({
-                head : "Device Not Registered",
-                text : "Silahkan registrasi device terlebih dahulu."
+            if (!await this.device.get()) return STATIC.verifyController({
+                status  : "denied",
+                head    : "Device Not Registered",
+                text    : "Silahkan registrasi device terlebih dahulu."
             }).show(() => STATIC.delay(3500, () => this.device.set()))
+
+
             
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -125,16 +126,6 @@ class AppController {
     async start() {
         STATIC.resetDRV()
         STATIC.resetPAYCODE()
-
-        await this.DB.put("DVC", {
-            id      : "device",
-            nama    : "Aspire A315 - Ben",
-            auth    : Date.now(),
-            status  : "active"
-        })
-
-        const device = await this.DB.getAll("DVC")
-        console.log("Device :", device)
 
         this.startAll = true
         STATIC.changeContent("scan")
@@ -1108,7 +1099,8 @@ class QRScanner {
         this.stop()
         const post =  await this.appCTRL.request.post({
             type    : "getDRV",
-            code    : code
+            code    : code,
+            device  : this.appCTRL.DB.get()
         })
         
         STATIC.loaderStop()
@@ -1705,7 +1697,7 @@ class Device {
         this.appCTRL    = main
         this.DB         = main.DB
         this.save       = document.querySelector("#device-save")
-        this.input      = document.querySelector("#device-input")
+        this.input      = document.querySelector("#device-name")
     }
     async get () {
         const device = await this.DB.get("DVC", "device")
@@ -1718,14 +1710,18 @@ class Device {
             const val = this.input.value.trim()
             if (val.length <= 3) return STATIC.toast("Nama device minimal 6 karakter", "warning")
             await this.DB.put("DVC", {
-                id      : "device",
+                ID      : "device",
                 nama    : val,
                 auth    : Date.now(),
                 status  : "active"
-            })
-            STATIC.toast("Device disimpan", "success")
-            this.appCTRL.DEVICE = val
-            this.appCTRL.init()
+            }) == true ? STATIC.verifyController({
+                status  : "success",
+                head    : "Device Tersimpan",
+                text    : "Device berhasil disimpan, aplikasi akan dimulai ulang"
+            }).show(() => {
+                STATIC.toast("Device disimpan", "success")
+                return STATIC.delay(2500, () => this.appCTRL._init() )
+            }) : ""
         }
     }
 }
@@ -1740,22 +1736,25 @@ class IndexedDBController {
     }
 
     async init(schema = {}) {
+        STATIC.loaderRun("Inisiasi Database...")
         console.log("[IndexedDB] Init DB : Versionx _" + this.version);
         this.schema = schema;
-        console.log("[IndexedDB] Schema:", this.schema);
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
             request.onerror = (e) => {
                 console.error("[IndexedDB] Gagal buka DB:", e);
                 STATIC.toast("Gagal buka database", "error");
-                this.ready = false
+                STATIC.verifyController({
+                    status  : "denied",
+                    head    : "Database Error",
+                    text    : "Gagal membuka database. Izinkan penggunaan IndexedDB di browser Anda dan muat ulang halaman."
+                }).show(() => STATIC.delay(2500, () => this.appCTRL.init()));
                 reject(e);
             };
 
             request.onsuccess = (e) => {
                 this.db = e.target.result;
                 this.ready = true
-                STATIC.toast("Database siap ✅", "success");
                 resolve(this);
             };
             request.onupgradeneeded = (e) => {
@@ -1806,6 +1805,7 @@ class IndexedDBController {
         } catch (err) {
             console.error("[IndexedDB][put]", err);
             STATIC.toast("Error saat menyimpan", "error");
+            return undefined
         }
     }
 
