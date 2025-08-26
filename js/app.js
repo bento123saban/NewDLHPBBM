@@ -48,7 +48,6 @@ class AppController {
                 }
             });
 
-
             //await STATIC.delay(1500, () => { this.formbbm.init()})
             //await STATIC.delay(1500, async () => { await this.face._init()})
             //await STATIC.delay(1500, async () => { await this.connect.start()})
@@ -90,8 +89,6 @@ class AppController {
                 text    : "Silahkan registrasi device terlebih dahulu."
             }).show(() => STATIC.delay(3500, () => this.device.set()))
 
-
-            
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
                     STATIC.isOnlineUI(async () => {
