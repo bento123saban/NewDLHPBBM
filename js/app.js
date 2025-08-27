@@ -13,7 +13,7 @@ class AppController {
         this.isStarting = false;
         this.startAll   = false;
         this.href       = window.location.href;
-        this.URL        = "https://script.google.com/macros/s/AKfycbwDDV_-AMH8Xb9qzdg_ujqb9haQAGfhePQVfiDOnf7soyb3X2W0SM_mPUgCSjRtb4-A/exec"
+        this.URL        = "https://script.google.com/macros/s/AKfycbySKG17WAYA7b9tDm_fXUeyAl2Psc0ldggASUrrQfJrqvclzbwNAMk0RL1sexStAbq1/exec"
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
@@ -36,7 +36,6 @@ class AppController {
 
         this.isStarting = true
         try {
-            STATIC.loaderRun("... Bendhard16 ...");
             const videos = document.querySelectorAll("video");
             videos.forEach(video => {
                 const stream = video.srcObject;
@@ -80,13 +79,7 @@ class AppController {
                 status  : "denied",
                 head    : "DB Init Error",
                 text    : "Initializasi DB Gagal. DB tidak ready"
-            }).show()   
-
-            if (!await this.device.get()) return STATIC.verifyController({
-                status  : "denied",
-                head    : "Device Not Registered",
-                text    : "Silahkan registrasi device terlebih dahulu."
-            }).show(() => STATIC.delay(3500, () => this.device.set()))
+            }).show()
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -1692,6 +1685,11 @@ class Device {
         return device
     }
     async loginGoogle() {
+        if (window.google && google.accounts && google.accounts.id) {
+            console.log("✅ Google Identity Services client loaded");
+        } else {
+            console.error("❌ GSI client not loaded");
+        }
         STATIC.changeContent("login-google")
     }
     async onGoogleScuccess(response) {
@@ -1700,26 +1698,21 @@ class Device {
     }
     async set () {
         document.querySelector("#login-google").remove()
-        STATIC.changeContent("device")
-        this.save.onclick = () => {
-            if (!this.input.value || this.input.value.length < 3) return STATIC.toast("Nama device minimal 3 karakter", "warning")
-            localStorage.setItem("device", {
-                name    : this.input.value || "Unknown Device",
-                id      : (()=> crypto.randomUUID)(),
-                last    : Date.now(),
-                token   : this.token
-            })
-            STATIC.loaderRun("Validate")
-            this.validate()
-        }
+        STATIC.loaderRun("Validate")
+        localStorage.setItem("device", JSON.stringify({
+            NAMA    : "Unknown Device",
+            ID      : (()=> crypto.randomUUID())(),
+            TOKEN   : this.token
+        }))
+        this.validate()
     }
 
     async validate() {
         const data = await this.get()
         if (!data) return undefined
         const res = this.appCTRL.request.post({
-            type : "validate",
-            data : data
+            type    : "registration",
+            device  : data
         })
         
         console.log("Validate device", res)
@@ -1895,7 +1888,7 @@ class IndexedDBController {
 
 window.addEventListener("DOMContentLoaded", async () => {
     document.querySelector("#reload").onclick = () => window.location.reload()
-
+    
     var app = new AppController()
     window.app = app
     await app._init();
