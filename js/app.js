@@ -30,9 +30,9 @@ class AppController {
     }
     async _init () {
 
-        //return 
-        STATIC.resetDRV()
-        STATIC.resetPAYCODE()
+        STATIC.loaderRun("Bendhard16")
+        const device = await this.device.get()
+        if (!device) return STATIC.delay(2500, async () => await this.device.loginGoogle())
 
         this.isStarting = true
         try {
@@ -50,7 +50,6 @@ class AppController {
 
             //await STATIC.delay(1500, () => { this.formbbm.init()})
             //await STATIC.delay(1500, async () => { await this.face._init()})
-            //await STATIC.delay(1500, async () => { await this.connect.start()})
             await STATIC.delay(1500, async () => { await this.DB.init({
                     TRX : {
                         options : { keyPath: "ID"},
@@ -265,15 +264,6 @@ class AppController {
     log(param) {
         console.log("[AppCTRL] ", param)
     }
-    regis () {
-        STATIC.changeContent("unregis")
-        document.querySelector("#regis").onkeyup = (e) => {
-            if (e.target.value.toUpperCase() != "DLHP") return
-            e.target.readOnly = true
-            localStorage.setItem("rgstr", "DLHP")
-            this._init()
-        }
-    }
     DEVICEID(){
         return localStorage.getItem("DVC")
     }
@@ -285,7 +275,7 @@ class connection {
         this.apiURL     = "https://script.google.com/macros/s/AKfycbzS1dSps41xcQ8Utf2IS0CgHg06wgkk5Pbh-NwXx2i41fdEZr1eFUOJZ3QaaFeCAM04IA/exec";
         this.url        = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.apiURL);
         this.isRunning  = false;
-        this.standart   = 5000;
+        this.standart   = 2500;
 
         this.pingText   = document.querySelector('#ping-text')
         this.pingLoader = document.querySelector('.ping-text')
@@ -323,21 +313,20 @@ class connection {
             this.pingCycle --
 
             let latency = 0,
-                status  = null
+                status  = []
 
             const start = performance.now(),
                 intv    = setInterval(() => {
                     const ltx = Math.round(performance.now() - start);
                     this.pingText.textContent  = ltx.toLocaleString() + " ms";
                     this.pingText.style.color  = ltx < this.standart ? 'limegreen' : 'red';
-                }, 300)
+                }, 500)
             try {
                 const res   = await fetch(this.url, {cache: "no-store"})
                 latency     = Math.round(performance.now() - start);
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 status = (latency < this.standart) ? 'good' : 'bad'
             } catch (err) {
-                console.warn('Error : ' + err.message)
                 latency     = Math.round(performance.now() - start);
                 status      = 'failed'
             }
@@ -1695,31 +1684,45 @@ class Device {
         this.DB         = main.DB
         this.save       = document.querySelector("#device-save")
         this.input      = document.querySelector("#device-name")
+        this.token      = null
     }
     async get () {
-        const device = await this.DB.get("DVC", "device")
+        const device = localStorage.getItem("device")
         if (!device) return undefined
         return device
     }
+    async loginGoogle() {
+        STATIC.changeContent("login-google")
+    }
+    async onGoogleScuccess(response) {
+        this.token = response.credential
+        return await this.set()
+    }
     async set () {
+        document.querySelector("#login-google").remove()
         STATIC.changeContent("device")
-        this.save.onclick = async () => {
-            const val = this.input.value.trim()
-            if (val.length <= 3) return STATIC.toast("Nama device minimal 6 karakter", "warning")
-            await this.DB.put("DVC", {
-                ID      : "device",
-                nama    : val,
-                auth    : Date.now(),
-                status  : "active"
-            }) == true ? STATIC.verifyController({
-                status  : "success",
-                head    : "Device Tersimpan",
-                text    : "Device berhasil disimpan, aplikasi akan dimulai ulang"
-            }).show(() => {
-                STATIC.toast("Device disimpan", "success")
-                return STATIC.delay(2500, () => this.appCTRL._init() )
-            }) : ""
+        this.save.onclick = () => {
+            if (!this.input.value || this.input.value.length < 3) return STATIC.toast("Nama device minimal 3 karakter", "warning")
+            localStorage.setItem("device", {
+                name    : this.input.value || "Unknown Device",
+                id      : (()=> crypto.randomUUID)(),
+                last    : Date.now(),
+                token   : this.token
+            })
+            STATIC.loaderRun("Validate")
+            this.validate()
         }
+    }
+
+    async validate() {
+        const data = await this.get()
+        if (!data) return undefined
+        const res = this.appCTRL.request.post({
+            type : "validate",
+            data : data
+        })
+        
+        console.log("Validate device", res)
     }
 }
 
@@ -1889,10 +1892,12 @@ class IndexedDBController {
     }
 }
 
+
 window.addEventListener("DOMContentLoaded", async () => {
-    localStorage.setItem("rgstr", "DLHP")
-    localStorage.setItem("DVC", "ACR_315")
+    document.querySelector("#reload").onclick = () => window.location.reload()
+
     var app = new AppController()
+    window.app = app
     await app._init();
     
     const videos = document.querySelectorAll("video");

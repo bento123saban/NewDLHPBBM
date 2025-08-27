@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <link rel="stylesheet" href="css/bendhard16.min.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="./font/fontawsome/css/all.css">
@@ -204,28 +207,56 @@
     <div class="content dis-none grid-center hidden p-0 m-0" id="device">
         <div class="device-form">
             <h3 class="clr-white align-center">Input Device Name</h3>
-            <div class="device-input">
-                <input type="text" class="transparent br-white borad-5 p-10 clr-white align-center bolder fz-18" minlength="6" id="device-name">
+            <div class="sv flex-center gap-10">
+                <div class="device-input">
+                    <input type="text" class="transparent br-white borad-5 p-5 clr-white align-center bolder fz-18" minlength="6" id="device-name">
+                </div>
+                <i class="fz-30 fas fa-save clr-white" id="device-save"></i>
             </div>
-            <span class="dis-block p-5 align-center mt-2 clr-white uppercase bolder" id="device-save"><i class="fz-24 fas fa-save clr-white"></i>&nbsp; Save</span>
         </div>
     </div>
 
     <div id="toast" class="">Toast text</div>
 
-    <div class="content grid-center dis-none" id="unregis">
-        <div class="unregis clr-red grid-center">
-            <i class="fas fa-triangle-exclamation fz-30"></i>
-            <h3 class="uppercase">Device Tidak Terdaftar</h3>
-            <div class="hr white"></div>
-            <input type="text" class="align-center" id="regis" placeholder="Bendhard16">
+    <div class="content grid-center dis-none" id="login-google">
+        <div>
+            <h1 class="clr-white">DLHP BBM CTRL</h1>
+            <div class="g_id_signin"
+                data-type="standard"
+                data-shape="pill"
+                data-theme="filled_black"
+                data-text="continue_with"
+                data-size="large"
+                data-logo_alignment="left">
+            </div>
         </div>
+        
     </div>
+
+    <div id="g_id_onload"
+        data-client_id="795274958306-a5gs7djtrc92vhmntvpttekf75umcbm4.apps.googleusercontent.com"
+        data-context="signin"
+        data-ux_mode="popup"
+        data-callback="loginGoogle"
+        data-nonce=""
+        data-auto_prompt="false">
+    </div>
+
+    
+
+    <div id="reload" class="p-10 grid-center p-10 black"><i class="fas fa-recycle"></i></div>
+
 
     <script defer src="./js/qr-code.js"></script>
     <script defer src="./js/human.js"></script>
     <script defer src="./js/config.js"></script>
     <script defer src="./js/app.js"></script>
+
+    <script>
+      function loginGoogle(response) {return window.app.device.onGoogleScuccess(response)}
+    </script>
+
+
 
 </body>
 </html>
