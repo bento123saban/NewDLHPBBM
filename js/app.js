@@ -10,10 +10,11 @@ class AppController {
         this.formbbm    = new Form(this, this._handleFormSuccess.bind(this))
         this.DB         = new IndexedDBController();
         this.device     = new Device(this);
+        this.driver     = new Driver(this);
         this.isStarting = false;
         this.startAll   = false;
         this.href       = window.location.href;
-        this.URL        = "https://script.google.com/macros/s/AKfycbySKG17WAYA7b9tDm_fXUeyAl2Psc0ldggASUrrQfJrqvclzbwNAMk0RL1sexStAbq1/exec"
+        this.URL        = "https://script.google.com/macros/s/AKfycbzm6zxFR5XAbR4KyULb3xPJHDwhhizBR8BKM2gzZ4rlExlt-iPBFSPPz85X2XW-4wsE/exec"
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
@@ -31,9 +32,12 @@ class AppController {
     async _init () {
 
         STATIC.loaderRun("Bendhard16")
-        const device = await this.device.get()
-        if (!device) return STATIC.delay(2500, async () => await this.device.loginGoogle())
+        this.driver.clearDRV()
 
+        const device = await this.device.get()
+        if (!device) return STATIC.delay(500, async () => await this.device.loginGoogle())
+        if (STATIC.isDifferentDay(Date.now(), device.LAST)) return this.device.loginGoogle()
+        
         this.isStarting = true
         try {
             const videos = document.querySelectorAll("video");
@@ -48,7 +52,7 @@ class AppController {
             });
 
             //await STATIC.delay(1500, () => { this.formbbm.init()})
-            //await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(1500, async () => { await this.DB.init({
                     TRX : {
                         options : { keyPath: "ID"},
@@ -61,9 +65,6 @@ class AppController {
                             {name : "CODE",     keyPath : "CODE"},
                             {name : "BIDANG",   keyPath : "BIDANG"}
                         ]
-                    },
-                    DVC : { 
-                        options : { keyPath: "ID"}
                     },
                     LST : {
                         options : { keyPath: "ID"},
@@ -83,15 +84,8 @@ class AppController {
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
-                    STATIC.isOnlineUI(async () => {
-                        await STATIC.delay(3000, () => {
-                            document.querySelector("#network").classList.add("dis-none")
-                            document.querySelector("#network i").className = ""
-                            STATIC.changeContent("home")
-                        })
-                    })
+                    STATIC.changeContent("home")
                 })
-                this.connect.pause()
                 this.isStarting = false
             })
 
@@ -113,9 +107,6 @@ class AppController {
         }
     }
     async start() {
-        STATIC.resetDRV()
-        STATIC.resetPAYCODE()
-
         this.startAll = true
         STATIC.changeContent("scan")
         this.DATA       = {
@@ -142,24 +133,26 @@ class AppController {
         this.capture.stop()
     }
     async _handleQRSuccess(param) {
-        
-        const data = param.data
 
-        //return console.log(typeof data.PHOTO)
+        const device = param.device
+        const driver = param.driver
+
+        this.device.update(device)
+        this.driver.setDRV(driver)
+        this.driver.put(driver)
         
-        this.DATA.ID        = data.ID
-        this.DATA.DRIVER    = data
+        this.DATA.ID        = driver.ID
+        this.DATA.DRIVER    = driver
         this.DATA.TRXID     = Date.now()
 
         STATIC.createPAYCODE()
-        STATIC.createDRV(data) 
         
         STATIC.loaderRun("Write Data")
-        document.querySelector("img#compare-photo").src         = `data:${data.PHOTO.mime};base64,${data.PHOTO.blob}`
-        document.querySelector("#nama-driver").textContent      = data.NAMA
-        document.querySelector("#nopol-driver").textContent     = data.NOPOL
-        document.querySelector("#nolambung-driver").textContent = data.ID
-        document.querySelector("#kendaraan-driver").textContent = data.KENDARAAN
+        document.querySelector("img#compare-photo").src         = `data:${driver.PHOTO.mime};base64,${driver.PHOTO.base64}`
+        document.querySelector("#nama-driver").textContent      = driver.NAMA
+        document.querySelector("#nopol-driver").textContent     = driver.NOPOL
+        document.querySelector("#nolambung-driver").textContent = driver.ID
+        document.querySelector("#kendaraan-driver").textContent = driver.KENDARAAN
         document.querySelector("#data-confirm").classList.remove('dis-none')
         document.querySelector("#face-guide-line").classList.add('dis-none')
         document.querySelector("#face-vid-box").classList.add('dis-none')
@@ -473,7 +466,7 @@ class STATIC {
             reader.readAsDataURL(blob);
         });
     }
-    static base64ToBlob(base64, mimeType = "image/jpeg") {
+    static async base64ToBlob(base64, mimeType = "image/jpeg") {
         const byteChars = atob(base64); // decode base64 → binary string
         const byteNumbers = new Array(byteChars.length);
         for (let i = 0; i < byteChars.length; i++) {
@@ -481,6 +474,23 @@ class STATIC {
         }
         const byteArray = new Uint8Array(byteNumbers);
         return new Blob([byteArray], {type: mimeType});
+    }
+    static async blobToBase64(blob) {
+        if (!blob) throw new Error("Blob tidak valid");
+        return await new Promise((resolve, reject) => {
+            try {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const result = reader.result || "";
+                    const base64 = result.includes(",") ? result.split(",")[1] : result;
+                    resolve(base64);
+                };
+                reader.onerror = () => reject(new Error("Gagal membaca blob"));
+                reader.readAsDataURL(blob);
+            } catch (err) {
+                reject(err);
+            }
+        });
     }
     static createPAYCODE () {
         const now   = new Date(),
@@ -499,31 +509,12 @@ class STATIC {
     static getPAYCODE () {
         return localStorage.getItem("PAYCODE")
     }
-    static createDRV (data) {
-        return localStorage.setItem("DRV", JSON.stringify(data))
-    }
-    static getDRV () {
-        return JSON.parse(localStorage.getItem("DRV"))
-    }
-    static resetDRV () {
-        return localStorage.setItem("DRV", "")
-    }
-    static async blobToBase64(blob) {
-        if (!blob) throw new Error("Blob tidak valid");
-        return await new Promise((resolve, reject) => {
-            try {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    const result = reader.result || "";
-                    const base64 = result.includes(",") ? result.split(",")[1] : result;
-                    resolve(base64);
-                };
-                reader.onerror = () => reject(new Error("Gagal membaca blob"));
-                reader.readAsDataURL(blob);
-            } catch (err) {
-                reject(err);
-            }
-        });
+    static isDifferentDay(ts1, ts2) {
+        const d1 = new Date(ts1);
+        const d2 = new Date(ts2);
+        const day1 = d1.getFullYear() + "-" + (d1.getMonth()+1) + "-" + d1.getDate();
+        const day2 = d2.getFullYear() + "-" + (d2.getMonth()+1) + "-" + d2.getDate();
+        return day1 !== day2;
     }
 
 }
@@ -563,7 +554,7 @@ class RequestManager {
     constructor(main) {
         this.maxRetries         = 3;
         this.retryDelay         = 1000;      // ms
-        this.timeoutMs          = 30000;    // ms
+        this.timeoutMs          = 60000;    // ms
         this.deferWhenHidden    = false;
         this.maxHiddenDeferMs   = 4000;
         this.appCTRL            = main || null;
@@ -1075,19 +1066,20 @@ class QRScanner {
     }
     async _requestData(code) {
         STATIC.loaderRun('Request Data')
+        const device = await this.appCTRL.device.get()
         this.stop()
         const post =  await this.appCTRL.request.post({
             type    : "getDRV",
             code    : code,
-            device  : this.appCTRL.DB.get()
+            device  : device
         })
         
         STATIC.loaderStop()
 
-        if (!post.confirm) return await this._scanWarn({
+        if (!post.confirm) return await this.onFailed({
             head    : post.error.code,
             text    : post.error.message
-        }, 5000)
+        })
 
         if (!post.data.confirm) return this.onFailed({
             head    : post.data.status,
@@ -1366,7 +1358,7 @@ class FaceRecognizer {
             return this.captureAndVerify();
         }, 1000);
     }
-    async captureAndVerify() {  
+    async captureAndVerify() {
         this._log("Capture")
         const canvas    = document.createElement("canvas")
         try {
@@ -1404,7 +1396,7 @@ class FaceRecognizer {
                     canvas.toBlob(async (blob) => {
                         if (!blob) return reject(new Error("Canvas menghasilkan blob null"));
                         try {
-                            const DRV = STATIC.getDRV();
+                            const DRV = this.appCTRL.driver.getDRV();
                             const base64 = await STATIC.blobToBase64(blob);
                             resolve({
                                 nama   : `${this.STATE} ${STATIC.getPAYCODE()} ${DRV.ID} ${DRV.NAMA}.jpg`,
@@ -1601,7 +1593,7 @@ class FaceRecognizer {
         this.STATE = "CAPTURE"
         this._log("Mengalihkan ke Capture")
         this.captureBtn.classList.remove("dis-none")
-        this.targetImage.src = `data:${data.mime};base64,${data.blob}`
+        this.targetImage.src = `data:${data.mime};base64,${data.base64}`
         //console.log("Data Driver", data)
         TTS.speak("Arahkan kamera ke kendaran untuk mengambil gambar. Pastikan jangan ada yang menghalangi.")
     }
@@ -1680,42 +1672,105 @@ class Device {
         this.token      = null
     }
     async get () {
-        const device = localStorage.getItem("device")
+        const device = await JSON.parse(localStorage.getItem("device"))
         if (!device) return undefined
         return device
     }
     async loginGoogle() {
-        if (window.google && google.accounts && google.accounts.id) {
-            console.log("✅ Google Identity Services client loaded");
-        } else {
-            console.error("❌ GSI client not loaded");
-        }
-        STATIC.changeContent("login-google")
+        return STATIC.changeContent("login-google")
     }
-    async onGoogleScuccess(response) {
-        this.token = response.credential
-        return await this.set()
+    async onGoogleScuccess(JWT) {
+        if (!await this.get()) return await this.set(JWT)
+        console.log("!Device sudah terdaftar, lanjut ke app", this.get())
     }
-    async set () {
+    async set (JWT) {
         document.querySelector("#login-google").remove()
-        STATIC.loaderRun("Validate")
         localStorage.setItem("device", JSON.stringify({
             NAMA    : "Unknown Device",
-            ID      : (()=> crypto.randomUUID())(),
-            TOKEN   : this.token
+            ID      : Date.now(),
+            JWT     : JWT
         }))
-        this.validate()
+        this.registration()
     }
-
-    async validate() {
+    async registration() {
         const data = await this.get()
         if (!data) return undefined
-        const res = this.appCTRL.request.post({
+        const res = await this.appCTRL.request.post({
             type    : "registration",
             device  : data
         })
-        
-        console.log("Validate device", res)
+
+        if (!res.confirm) return STATIC.verifyController({
+            status  : "denied",
+            head    : res.error.code,
+            text    : res.error.message
+        }).show()
+        if (!res.data.confirm) return STATIC.verifyController({
+            status  : "denied",
+            head    : res.data.status,
+            text    : res.data.msg
+        }).show()
+        if (res.data.confirm) {
+            STATIC.loaderStop()
+            const device = res.data.device
+            console.log("Device registered:", device)
+            STATIC.toast("Device terdaftar", "success")
+            this.update({
+                NAMA    : device.NAMA,
+                AUTH    : device.AUTH,
+                LAST    : device.LAST,
+                REGIS   : device.REGIS
+            })
+            window.location.reload()
+        }
+    }
+    async update(data){
+        try {
+            const device = await this.get()
+            device.AUTH = data.AUTH ? data.AUTH : device.AUTH
+            device.LAST = data.LAST ? data.LAST : device.LAST
+            device.NAMA = data.NAMA ? data.NAMA : device.NAMA
+            localStorage.setItem("device", JSON.stringify(device))
+        }
+        catch (err) {
+            console.error("Gagal update device:", err)  
+        }
+    }
+}
+
+class Driver {
+    constructor (main) {
+        this.appCTRL    = main
+        this.DB         = main.DB
+        this.data       = null
+    }
+    async get () {
+        if (this.data) return this.data
+        const drv = await JSON.parse(localStorage.getItem("driver"))
+        if (!drv) return undefined
+        this.data = drv
+        return drv
+    }
+    async put (data) {
+        if (!data || typeof data !== "object") return undefined
+        data.lastUpdate = Date.now()
+        const put = await this.DB.put("DRV", data)
+        console.log(put)
+    }
+    async clear() {
+        localStorage.removeItem("driver")
+        this.data = null
+    }
+
+    setDRV(data) {
+        localStorage.setItem("driver", JSON.stringify(data))
+        return data
+    }
+    getDRV() {
+        return JSON.parse(localStorage.getItem("driver"))
+    }
+    clearDRV() {
+        localStorage.setItem("driver", "")
     }
 }
 
