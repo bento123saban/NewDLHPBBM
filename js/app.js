@@ -14,7 +14,7 @@ class AppController {
         this.isStarting = false;
         this.startAll   = false;
         this.href       = window.location.href;
-        this.URL        = "https://script.google.com/macros/s/AKfycbzm6zxFR5XAbR4KyULb3xPJHDwhhizBR8BKM2gzZ4rlExlt-iPBFSPPz85X2XW-4wsE/exec"
+        this.URL        = "https://script.google.com/macros/s/AKfycbxHkKIo441FNXqkj1qsPNcNb2qigEKCq19-WKO3fS74lD_AXEncReuuXQh7-6UsVlvR/exec"
         this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
@@ -32,7 +32,7 @@ class AppController {
     async _init () {
 
         STATIC.loaderRun("Bendhard16")
-        this.driver.clearDRV()
+        //this.driver.clearDRV()
 
         const device = await this.device.get()
         if (!device) return STATIC.delay(500, async () => await this.device.loginGoogle())
@@ -51,8 +51,9 @@ class AppController {
                 }
             });
 
-            //await STATIC.delay(1500, () => { this.formbbm.init()})
-            await STATIC.delay(1500, async () => { await this.face._init()})
+            
+            await STATIC.delay(1500, () => { this.formbbm.init()})
+            //await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(1500, async () => { await this.DB.init({
                     TRX : {
                         options : { keyPath: "ID"},
@@ -81,6 +82,7 @@ class AppController {
                 head    : "DB Init Error",
                 text    : "Initializasi DB Gagal. DB tidak ready"
             }).show()
+            
 
             STATIC.delay(2500, async() => {
                 STATIC.loaderStop(() => {
@@ -108,7 +110,8 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        STATIC.changeContent("scan")
+        STATIC.changeContent("bbm-form")
+        this.formbbm.start()
         this.DATA       = {
             ID          : null,
             FACE        : null,
@@ -124,7 +127,7 @@ class AppController {
         }
         this.DATA.start = Date.now()
         //await this.qrScanner.start()
-        await this.qrScanner._requestData("A-001");
+        //await this.qrScanner._requestData("A-001");
     }
     stop() {
         this.qrScanner.stop();
@@ -195,12 +198,14 @@ class AppController {
     }
     async _handleCaptureSuccess(blob) {
         this.log("captureBlob", blob)
-        STATIC.loaderRun('...')
+        STATIC.loaderRun('Loading Form...')
         this.DATA.CAPTURE = blob
         this.formbbm.start()
         await STATIC.delay(3000, () => STATIC.changeContent('bbm-form'))
         STATIC.loaderStop()
         TTS.speak("Silahkan Pilih jenis BBM yang akan diisi")
+        this.formbbm.start()
+
     }
     async _handleFormSuccess(bbm){
         this.DATA.BBM = bbm
@@ -515,6 +520,11 @@ class STATIC {
         const day1 = d1.getFullYear() + "-" + (d1.getMonth()+1) + "-" + d1.getDate();
         const day2 = d2.getFullYear() + "-" + (d2.getMonth()+1) + "-" + d2.getDate();
         return day1 !== day2;
+    }
+    static isReloadByDate (ts1, ts2) {
+        const d1 = new Date(ts1);
+        const d2 = new Date(ts2);
+        return (this.isDifferentDay(ts1, ts2) ? window.location.reload() : undefined);
     }
 
 }
@@ -1605,8 +1615,10 @@ class Form {
         this.success    = success
         this.bbmForm    = document.querySelector('#bbm')
         this.types      = this.bbmForm.querySelectorAll('#bbm .bbm-type-btn')
+        this.typesForm  = document.querySelector('#bbm-type-form')
         this.literForm  = document.querySelector('#liter')
         this.liters     = document.querySelectorAll(".liter-count span")
+        this.litersForm = document.querySelector('#bbm-liter-form')
         this.chosen     = document.querySelector("#the-chosen")
         this.chosenType = document.querySelector("#bbm-chosen-type")
         this.chosenLtr  = document.querySelector("#bbm-chosen-liter")
@@ -1654,6 +1666,17 @@ class Form {
         this.chosen.classList.add("absolute-bottom")
         this.literForm.classList.add("dis-none")
         this.change.classList.add("dis-none")
+        
+        const driver = this.appCTRL.driver.getDRV()
+        console.log("Driver", driver)
+
+        const BBMS = driver.BBM.split(",").map(item => item.trim());
+        let typesHTML = ``
+        BBMS.forEach(type => typesHTML += `<div class="bbm-type-btn">${type}</div>`)    
+        
+        let jalur = parseInt(driver.JALUR)
+        let liter = parseInt(driver.LITER)
+        const liters = Array.from({ jalur}, (_, i) => liter * (i + 1));
     }
     reset () {
 
@@ -1681,7 +1704,34 @@ class Device {
     }
     async onGoogleScuccess(JWT) {
         if (!await this.get()) return await this.set(JWT)
-        console.log("!Device sudah terdaftar, lanjut ke app", this.get())
+        const device = await this.get()
+        device.JWT = JWT
+        const res = await this.appCTRL.request.post({
+            type    : "reload",
+            device  : device
+        })
+        if (!res.confirm) return STATIC.verifyController({
+            status  : "denied",
+            head    : res.error.code,
+            text    : res.error.message
+        }).show()
+        if (!res.data.confirm) return STATIC.verifyController({
+            status  : "denied",
+            head    : res.data.status,
+            text    : res.data.msg
+        }).show()
+        if (res.data.confirm) {
+            STATIC.loaderStop()
+            const device = res.data.device
+            console.log("Device registered:", device)
+            STATIC.toast("Device terdaftar", "success")
+            this.update({
+                NAMA    : device.NAMA,
+                AUTH    : device.AUTH,
+                LAST    : device.LAST
+            })
+            window.location.reload()
+        }
     }
     async set (JWT) {
         document.querySelector("#login-google").remove()
@@ -1718,8 +1768,7 @@ class Device {
             this.update({
                 NAMA    : device.NAMA,
                 AUTH    : device.AUTH,
-                LAST    : device.LAST,
-                REGIS   : device.REGIS
+                LAST    : device.LAST
             })
             window.location.reload()
         }
