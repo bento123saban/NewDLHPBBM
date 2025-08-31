@@ -1676,7 +1676,7 @@ class Form {
         
         let jalur = parseInt(driver.JALUR)
         let liter = parseInt(driver.LITER)
-        const liters = Array.from({ jalur}, (_, i) => liter * (i + 1));
+        const liters = Array.from({length : jalur}, (_, i) => liter * (i + 1));
     }
     reset () {
 
