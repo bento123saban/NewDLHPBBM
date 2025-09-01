@@ -32,7 +32,6 @@ class AppController {
     async _init () {
 
         STATIC.loaderRun("Bendhard16")
-        //this.driver.clearDRV()
 
         const device = await this.device.get()
         if (!device) return STATIC.delay(500, async () => await this.device.loginGoogle())
@@ -51,9 +50,7 @@ class AppController {
                 }
             });
 
-            
-            await STATIC.delay(1500, () => { this.formbbm.init()})
-            //await STATIC.delay(1500, async () => { await this.face._init()})
+            await STATIC.delay(1500, async () => { await this.face._init()})
             await STATIC.delay(1500, async () => { await this.DB.init({
                     TRX : {
                         options : { keyPath: "ID"},
@@ -110,7 +107,7 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        STATIC.changeContent("bbm-form")
+        //STATIC.changeContent("bbm-form")
         this.formbbm.start()
         this.DATA       = {
             ID          : null,
@@ -127,7 +124,7 @@ class AppController {
         }
         this.DATA.start = Date.now()
         //await this.qrScanner.start()
-        //await this.qrScanner._requestData("A-001");
+        await this.qrScanner._requestData("A-001");
     }
     stop() {
         this.qrScanner.stop();
@@ -1613,17 +1610,8 @@ class Form {
     constructor (main, success) {
         this.appCTRL    = main
         this.success    = success
-        this.bbmForm    = document.querySelector('#bbm')
-        this.types      = this.bbmForm.querySelectorAll('#bbm .bbm-type-btn')
         this.typesForm  = document.querySelector('#bbm-type-form')
-        this.literForm  = document.querySelector('#liter')
-        this.liters     = document.querySelectorAll(".liter-count span")
         this.litersForm = document.querySelector('#bbm-liter-form')
-        this.chosen     = document.querySelector("#the-chosen")
-        this.chosenType = document.querySelector("#bbm-chosen-type")
-        this.chosenLtr  = document.querySelector("#bbm-chosen-liter")
-        this.change     = document.querySelector("#change")
-        this.save       = document.querySelector("#bbm-save")
         this.DATA       = {
             type    : null,
             liter   : null
@@ -1659,24 +1647,45 @@ class Form {
             this.success(this.DATA)
         }
     }
+    bindElements () {
+        this.bbmForm    = document.querySelector('#bbm')
+        this.types      = this.bbmForm.querySelectorAll('.bbm-type-btn')
+        this.literForm  = document.querySelector('#liter')
+        this.liters     = document.querySelectorAll(".liter-count span")
+        this.chosen     = document.querySelector("#the-chosen")
+        this.chosenType = document.querySelector("#bbm-chosen-type")
+        this.chosenLtr  = document.querySelector("#bbm-chosen-liter")
+        this.change     = document.querySelector("#change")
+        this.save       = document.querySelector("#bbm-save")
+    }
     start () {
-        this.log("START")
+        const driver = this.appCTRL.driver.getDRV()
+        console.log("Driver", driver)
+
+        const BBMS = driver.BBM.split(",").map(item => item.trim());
+        let typesHTML = ``
+        BBMS.forEach(type => typesHTML += `<div class="bbm-type-btn">${type}</div>`)  
+        this.typesForm.innerHTML = typesHTML
+        
+        let jalur = parseInt(driver.JALUR)
+        let liter = parseInt(driver.LITER)
+        let litersHTML = ``
+        const liters = Array.from({length : jalur}, (_, i) => liter * (i + 1));
+        liters.forEach(liter => {
+            litersHTML += `<span>${liter}</span>`
+        })
+        this.litersForm.innerHTML = litersHTML
+
+        this.bindElements()
+
         this.bbmForm.classList.remove("dis-none")
         this.chosen.classList.add("dis-none")
         this.chosen.classList.add("absolute-bottom")
         this.literForm.classList.add("dis-none")
         this.change.classList.add("dis-none")
         
-        const driver = this.appCTRL.driver.getDRV()
-        console.log("Driver", driver)
-
-        const BBMS = driver.BBM.split(",").map(item => item.trim());
-        let typesHTML = ``
-        BBMS.forEach(type => typesHTML += `<div class="bbm-type-btn">${type}</div>`)    
-        
-        let jalur = parseInt(driver.JALUR)
-        let liter = parseInt(driver.LITER)
-        const liters = Array.from({length : jalur}, (_, i) => liter * (i + 1));
+        this.init()
+        STATIC.loaderStop()
     }
     reset () {
 
