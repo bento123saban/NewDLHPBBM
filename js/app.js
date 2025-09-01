@@ -33,6 +33,9 @@ class AppController {
 
         STATIC.loaderRun("Bendhard16")
 
+        this.driver.clearDRV()
+        STATIC.resetPAYCODE()
+
         const device = await this.device.get()
         if (!device) return STATIC.delay(500, async () => await this.device.loginGoogle())
         if (STATIC.isDifferentDay(Date.now(), device.LAST)) return this.device.loginGoogle()
@@ -107,8 +110,6 @@ class AppController {
     }
     async start() {
         this.startAll = true
-        //STATIC.changeContent("bbm-form")
-        this.formbbm.start()
         this.DATA       = {
             ID          : null,
             FACE        : null,
@@ -133,6 +134,8 @@ class AppController {
         this.capture.stop()
     }
     async _handleQRSuccess(param) {
+        this.driver.clearDRV()
+        STATIC.resetPAYCODE()
 
         const device = param.device
         const driver = param.driver
@@ -225,12 +228,13 @@ class AppController {
             this.DATA.BBM.liter, // 8 Liter
             this.DEVICEID() // 9 Device
         ]
-        console.log("Send data : ", newData)
+        const device = await this.device.get()
         const post = await this.request.post({
-            type : "addTRX",
-            data : newData
+            type    : "addTRX",
+            data    : newData,
+            device  : device
         })
-
+        
         if (post.confirm) {
             this.log("Post Success", post)
             STATIC.loaderStop()
@@ -238,6 +242,9 @@ class AppController {
                 head : "Data Terkirim",
                 text : "Data berhasil dikirim ke server."
             })
+
+            const DVC = post.device
+            this.device.update(DVC)
 
             verify.show(() => STATIC.delay(3000, () => verify.clear(() => {
                 this.begin = false
@@ -501,12 +508,12 @@ class STATIC {
             year    = now.getFullYear().toString().slice(-2),
             minute  = now.getMinutes() > 9 ? now.getMinutes() : "0" + now.getMinutes(),
             hours   = now.getHours() > 9 ? now.getHours() : "0" + now.getHours(),
-            payCode = `${year}${month}${date}.${hours}${minute}`
+            payCode = `${year}${month}${date}_${hours}${minute}`
 
         return localStorage.setItem("PAYCODE", payCode)
     }
     static resetPAYCODE() {
-        return localStorage.setItem("PAYCODE", "")
+        return localStorage.removeItem("PAYCODE")
     }
     static getPAYCODE () {
         return localStorage.getItem("PAYCODE")
@@ -1825,10 +1832,11 @@ class Driver {
         return data
     }
     getDRV() {
-        return JSON.parse(localStorage.getItem("driver"))
+        const driver = localStorage.getItem("driver")
+        return !driver ? undefined : JSON.parse(driver)
     }
     clearDRV() {
-        localStorage.setItem("driver", "")
+        localStorage.removeItem("driver")
     }
 }
 
