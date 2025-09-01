@@ -1797,7 +1797,7 @@ class Device {
             device.NAMA = data.NAMA ? data.NAMA : device.NAMA
             localStorage.setItem("device", JSON.stringify(device))
         }
-        catch (err) {
+        catch (err) { 
             console.error("Gagal update device:", err)  
         }
     }
