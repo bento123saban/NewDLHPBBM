@@ -11,35 +11,48 @@ class AppController {
         this.DB         = new IndexedDBController();
         this.device     = new Device(this);
         this.driver     = new Driver(this);
+        this.location   = new LocationManager(this);
         this.isStarting = false;
         this.startAll   = false;
         this.href       = window.location.href;
-        this.URL        = "https://script.google.com/macros/s/AKfycbxHkKIo441FNXqkj1qsPNcNb2qigEKCq19-WKO3fS74lD_AXEncReuuXQh7-6UsVlvR/exec"
-        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" + encodeURIComponent(this.URL);
+        this.URL        = "https://script.google.com/macros/s/AKfycbxA0QOxYSDAG6ldQc4uGPiVnXQKslFeWcNCKBaHXfbndYAcUfZBiBNrd8YJP4oCZtxQ/exec"
+        this.baseURL    = "https://bbmctrl.dlhpambon2025.workers.dev?url=" //+ encodeURIComponent(this.URL);
         this.DATA       = {
                 TRXID       : null,
                 ID          : null,
                 FACE        : null,
                 CAPTURE     : null,
-                BBM         : null,
+                LITER       : null,
                 start       : null,
                 end         : null,
                 sent        : null,
                 DRIVER      : null,
-                PAYCODE     : null
+                PAYCODE     : null,
+                LOCATION    : this.location.getLatLong()
             }
+    }
+    async login () {
+        STATIC.loaderRun("Bendhard16")
+        if (!this.location.isAvailable) {
+            param = false
+            STATIC.changeContent("location-access")
+            document.querySelector("#location-access h4").textContent = "Geolocation tidak tersedia di perangkat ini."
+            return STATIC.loaderStop()
+        }
+        this.location.onPermissionDenied( async () => {
+            console.log("Loc denied")
+            STATIC.changeContent("location-access")
+            document.querySelector("#location-access h4").textContent = "Aplikasi memerlukan akses LOKASI untuk melanjutkan."
+            return STATIC.loaderStop()
+        })
+        this.location.onPermissionGranted(() => window.location.reload())
+        
+        this.driver.clearDRV()
+        STATIC.resetPAYCODE()
+        return STATIC.delay(3500, await this.device.loginGoogle())
     }
     async _init () {
 
-        STATIC.loaderRun("Bendhard16")
-
-        this.driver.clearDRV()
-        STATIC.resetPAYCODE()
-
-        const device = await this.device.get()
-        if (!device) return STATIC.delay(500, async () => await this.device.loginGoogle())
-        if (STATIC.isDifferentDay(Date.now(), device.LAST)) return this.device.loginGoogle()
-        
         this.isStarting = true
         try {
             const videos = document.querySelectorAll("video");
@@ -200,16 +213,13 @@ class AppController {
         this.log("captureBlob", blob)
         STATIC.loaderRun('Loading Form...')
         this.DATA.CAPTURE = blob
-        this.formbbm.start()
+        this.formbbm.init()
         await STATIC.delay(3000, () => STATIC.changeContent('bbm-form'))
         STATIC.loaderStop()
         TTS.speak("Silahkan Pilih jenis BBM yang akan diisi")
-        this.formbbm.start()
-
     }
-    async _handleFormSuccess(bbm){
-        this.DATA.BBM = bbm
-        this.log(bbm)
+    async _handleFormSuccess(liter){
+        this.DATA.LITER = liter
         await STATIC.delay(500, () => STATIC.loaderRun("Sending Data..."))
         this.finall()
     }
@@ -224,9 +234,9 @@ class AppController {
             this.DATA.DRIVER.NAMA, // 4 Nama
             this.DATA.FACE, // 5 Face
             this.DATA.CAPTURE, // 6 Capture
-            this.DATA.BBM.type, // 7 BBM
-            this.DATA.BBM.liter, // 8 Liter
-            this.DEVICEID() // 9 Device
+            this.DATA.LITER, // 8 Liter
+            this.DEVICEID(), // 9 Device
+            this.location.getLatLong() // 10 Location
         ]
         const device = await this.device.get()
         const post = await this.request.post({
@@ -234,25 +244,33 @@ class AppController {
             data    : newData,
             device  : device
         })
-        
-        if (post.confirm) {
-            this.log("Post Success", post)
-            STATIC.loaderStop()
-            const verify = STATIC.verifyController({
-                head : "Data Terkirim",
-                text : "Data berhasil dikirim ke server."
-            })
 
-            const DVC = post.device
-            this.device.update(DVC)
-
-            verify.show(() => STATIC.delay(3000, () => verify.clear(() => {
-                this.begin = false
-                STATIC.changeContent("home")
-            })))
-        } else {
-            this.log("Post Failed", post)
-            STATIC.toast("Gagal mengirim data: " + post.error.message, "error");
+        try {
+            if (!post.confirm) throw new Error(post.error.message)
+            else if (!post.data.confirm) {
+                console.log(post.data)
+                throw new Error("Server Respon")
+            }
+            else if (post.data.confirm) {
+                return
+                STATIC.loaderStop()
+                const verify = STATIC.verifyController({
+                    text : "",
+                    head : "KODE<br>" + STATIC.getPAYCODE()
+                }).show(async () => {
+                    await STATIC.delay(4000)
+                    let counter = 500
+                    const interval = setInterval(() => {
+                        document.querySelector("#verify-text").textContent = counter
+                        counter --
+                        if (counter <= 0) return this.login()
+                    }, 1000)
+                })
+            }
+        }
+        catch (e) {
+            this.log("Post Failed", e)
+            STATIC.toast("Gagal mengirim data: " + e, "error");
         }
         STATIC.loaderStop()
     }
@@ -359,8 +377,8 @@ class STATIC {
         return {
             show : (callback = "") => {
                 STATIC.changeContent("verify")
-                document.querySelector("#verify h4").textContent        = data.head
-                document.querySelector("#verify span").textContent      = data.text
+                document.querySelector("#verify h4").innerHTML        = data.head
+                document.querySelector("#verify span").innerHTML      = data.text
                 if (data.status == 'denied') {
                     document.querySelector("#verify i").className       = "fas fa-x fz-30 grid-center m-auto"
                     document.querySelector("#verify-data").className    = "red align-center"
@@ -373,8 +391,8 @@ class STATIC {
             },
             clear : (callback = "") => {
                 document.querySelector("#verify").classList.add("dis-none")
-                document.querySelector("#verify h4").textContent = ""
-                document.querySelector("#verify span").textContent = ""
+                document.querySelector("#verify h4").innerHTML = ""
+                document.querySelector("#verify span").innerHTML = ""
                 document.querySelector("#verify i").className = ""
                 
                 if(typeof callback === "function") callback()
@@ -1617,88 +1635,24 @@ class Form {
     constructor (main, success) {
         this.appCTRL    = main
         this.success    = success
-        this.typesForm  = document.querySelector('#bbm-type-form')
-        this.litersForm = document.querySelector('#bbm-liter-form')
-        this.DATA       = {
-            type    : null,
-            liter   : null
-        }
+        this.liter      = document.querySelector("#liter")
+        this.numbers    = document.querySelectorAll(".number")
+        this.delete     = document.querySelector("#delete")
+        this.submit     = document.querySelector("#submit")
     }
     init () {
         STATIC.loaderRun("Form Init")
-        this.types.forEach(type => {
-            type.onclick = () => {
-                this.literForm.classList.remove("dis-none")
-                this.bbmForm.classList.add("dis-none")
-                this.change.classList.remove("dis-none")
-                this.chosenType.textContent = type.textContent
-                this.DATA.type = type.textContent
-                TTS.speak("Silahkan Pilih jumlah liter BBM yang akan diisi")
+        this.numbers.forEach((number, i) => {
+            number.onclick = () => {
+                if (number.classList.contains("action")) return
+                this.liter.value += "" + number.textContent
             }
         })
-        this.change.onclick = () => this.start()
-        this.liters.forEach(liter => {
-            liter.onclick = () => {
-                this.DATA.liter = liter.textContent
-                this.chosenLtr.textContent = liter.textContent + " Liter"
-                this.start()
-                this.chosen.classList.remove("dis-none")
-                this.chosen.classList.remove("absolute-bottom")
-                this.bbmForm.classList.add("dis-none")
-                this.change.classList.remove("dis-none")
-                TTS.speak("Kamu akan melakukan pengisian BBM " + this.DATA.type + " sejumlah " + this.DATA.liter + " liter. Silahkan pilih simpan atau ubah dengan memilih reset.")
-            }
-        })
-        this.save.onclick = () => {
-            STATIC.loaderRun("Save Data")
-            this.success(this.DATA)
+        this.delete.onclick = () => (this.liter.value) ? this.liter.value = this.liter.value.slice(0, -1) : "";
+        this.submit.onclick = () => {
+            if (this.liter.value == "") return
+            this.success(parseInt(this.liter.value))
         }
-    }
-    bindElements () {
-        this.bbmForm    = document.querySelector('#bbm')
-        this.types      = this.bbmForm.querySelectorAll('.bbm-type-btn')
-        this.literForm  = document.querySelector('#liter')
-        this.liters     = document.querySelectorAll(".liter-count span")
-        this.chosen     = document.querySelector("#the-chosen")
-        this.chosenType = document.querySelector("#bbm-chosen-type")
-        this.chosenLtr  = document.querySelector("#bbm-chosen-liter")
-        this.change     = document.querySelector("#change")
-        this.save       = document.querySelector("#bbm-save")
-    }
-    start () {
-        const driver = this.appCTRL.driver.getDRV()
-        console.log("Driver", driver)
-
-        const BBMS = driver.BBM.split(",").map(item => item.trim());
-        let typesHTML = ``
-        BBMS.forEach(type => typesHTML += `<div class="bbm-type-btn">${type}</div>`)  
-        this.typesForm.innerHTML = typesHTML
-        
-        let jalur = parseInt(driver.JALUR)
-        let liter = parseInt(driver.LITER)
-        let litersHTML = ``
-        const liters = Array.from({length : jalur}, (_, i) => liter * (i + 1));
-        liters.forEach(liter => {
-            litersHTML += `<span>${liter}</span>`
-        })
-        this.litersForm.innerHTML = litersHTML
-
-        this.bindElements()
-
-        this.bbmForm.classList.remove("dis-none")
-        this.chosen.classList.add("dis-none")
-        this.chosen.classList.add("absolute-bottom")
-        this.literForm.classList.add("dis-none")
-        this.change.classList.add("dis-none")
-        
-        this.init()
-        STATIC.loaderStop()
-    }
-    reset () {
-
-    }
-    log(param) {
-        console.log("[BBMForm] :", param)
     }
 }
 
@@ -1719,7 +1673,6 @@ class Device {
         return STATIC.changeContent("login-google")
     }
     async onGoogleScuccess(JWT) {
-        if (!await this.get()) return await this.set(JWT)
         const device = await this.get()
         device.JWT = JWT
         const res = await this.appCTRL.request.post({
@@ -1737,7 +1690,6 @@ class Device {
             text    : res.data.msg
         }).show()
         if (res.data.confirm) {
-            STATIC.loaderStop()
             const device = res.data.device
             console.log("Device registered:", device)
             STATIC.toast("Device terdaftar", "success")
@@ -1746,47 +1698,7 @@ class Device {
                 AUTH    : device.AUTH,
                 LAST    : device.LAST
             })
-            window.location.reload()
-        }
-    }
-    async set (JWT) {
-        document.querySelector("#login-google").remove()
-        localStorage.setItem("device", JSON.stringify({
-            NAMA    : "Unknown Device",
-            ID      : Date.now(),
-            JWT     : JWT
-        }))
-        this.registration()
-    }
-    async registration() {
-        const data = await this.get()
-        if (!data) return undefined
-        const res = await this.appCTRL.request.post({
-            type    : "registration",
-            device  : data
-        })
-
-        if (!res.confirm) return STATIC.verifyController({
-            status  : "denied",
-            head    : res.error.code,
-            text    : res.error.message
-        }).show()
-        if (!res.data.confirm) return STATIC.verifyController({
-            status  : "denied",
-            head    : res.data.status,
-            text    : res.data.msg
-        }).show()
-        if (res.data.confirm) {
-            STATIC.loaderStop()
-            const device = res.data.device
-            console.log("Device registered:", device)
-            STATIC.toast("Device terdaftar", "success")
-            this.update({
-                NAMA    : device.NAMA,
-                AUTH    : device.AUTH,
-                LAST    : device.LAST
-            })
-            window.location.reload()
+           this.appCTRL._init()
         }
     }
     async update(data){
@@ -2006,13 +1918,83 @@ class IndexedDBController {
     }
 }
 
+class LocationManager {
+    constructor(options = {}) {
+        this.onDeniedCallback = null;
+        this.onGrantedCallback = null;
+        
+        this.defaultOptions = {
+            enableHighAccuracy  : options.enableHighAccuracy || true,
+            timeout             : options.timeout || 10000,
+            maximumAge          : options.maximumAge || 0
+        };
+    }
+
+    isAvailable() {
+        return "geolocation" in navigator;
+    }
+
+    async getLatLong(options = {}) {
+        if (!this.isAvailable()) throw new Error("Geolocation tidak tersedia di perangkat ini.");
+
+        const opt = { ...this.defaultOptions, ...options };
+
+        return new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const coords = pos.coords.latitude + " " + pos.coords.longitude
+                resolve(coords);
+                },
+                (err) => {
+                    const handled = this.handleError(err);
+                    if (handled.code === "PERMISSION_DENIED" && this.onDeniedCallback) this.onDeniedCallback(handled);
+                    reject(handled);
+                },
+                opt
+            );
+        });
+    }
+
+    onPermissionDenied(callback) {
+        if (typeof callback === "function") this.onDeniedCallback = callback;
+    }
+    onPermissionGranted(callback) {
+        if (typeof callback === "function") this.onGrantedCallback = callback;
+    }
+
+    handleError(err) {
+        let msg = "";
+        let code = "";
+        switch (err.code) {
+        case err.PERMISSION_DENIED:
+            msg = "Izin lokasi ditolak user.";
+            code = "PERMISSION_DENIED";
+            break;
+        case err.POSITION_UNAVAILABLE:
+            msg = "Informasi lokasi tidak tersedia.";
+            code = "POSITION_UNAVAILABLE";
+            break;
+        case err.TIMEOUT:
+            msg = "Request lokasi timeout.";
+            code = "TIMEOUT";
+            break;
+        default:
+            msg = "Error lokasi tidak diketahui.";
+            code = "UNKNOWN";
+        }
+        const error = new Error(msg);
+        error.code = code;
+        return error;
+    }
+}
+
+
 
 window.addEventListener("DOMContentLoaded", async () => {
     document.querySelector("#reload").onclick = () => window.location.reload()
     
     var app = new AppController()
     window.app = app
-    await app._init();
+    await app.login();
     
     const videos = document.querySelectorAll("video");
     videos.forEach(video => {
