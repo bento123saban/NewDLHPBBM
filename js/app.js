@@ -33,6 +33,7 @@ class AppController {
     }
     async login () {
         STATIC.loaderRun("Bendhard16")
+        this.device.set()
         if (!this.location.isAvailable) {
             param = false
             STATIC.changeContent("location-access")
@@ -46,6 +47,7 @@ class AppController {
             return STATIC.loaderStop()
         })
         this.location.onPermissionGranted(() => window.location.reload())
+        console.log(await this.location.getLatLong())
         
         this.driver.clearDRV()
         STATIC.resetPAYCODE()
@@ -106,11 +108,7 @@ class AppController {
 
             let ttsUnlocked = false;
             document.querySelector("#start").onclick = async () => {
-                if (this.begin) return
-                if (ttsUnlocked) {
-                    this.begin = true
-                    return await this.start()
-                }
+                if (ttsUnlocked) return await this.start()
                 const dummy = new SpeechSynthesisUtterance(" ");
                 window.speechSynthesis.speak(dummy);
                 ttsUnlocked = true;
@@ -137,6 +135,54 @@ class AppController {
             DRIVER      : null
         }
         this.DATA.start = Date.now()
+        
+        //return await this.qrScanner._requestData("A-001");
+
+        return ( async () => {
+            const device    = this.device.get()
+            const data      = JSON.parse(localStorage.getItem("dataSent"))
+
+            console.log({
+                device  : device,
+                data    : data
+            })
+            const post      = await this.request.post({
+                type    : "addTRX",
+                data    : data,
+                device  : device
+            })
+            
+            try {
+                if (!post.confirm) throw new Error(post.error.message)
+                else if (!post.data.confirm) {
+                    console.log(post.data)
+                    throw new Error("Server Respon")
+                }
+                else if (post.data.confirm) {
+                    return
+                    STATIC.loaderStop()
+                    const verify = STATIC.verifyController({
+                        text : "",
+                        head : "KODE<br>" + STATIC.getPAYCODE()
+                    }).show(async () => {
+                        await STATIC.delay(4000)
+                        let counter = 500
+                        const interval = setInterval(() => {
+                            document.querySelector("#verify-text").textContent = counter
+                            counter --
+                            if (counter <= 0) return this.login()
+                        }, 1000)
+                    })
+                }
+            }
+            catch (e) {
+                this.log("Post Failed", e)
+                STATIC.toast("Gagal mengirim data: " + e, "error");
+            }
+
+            STATIC.loaderStop()
+
+        })()
         //await this.qrScanner.start()
         await this.qrScanner._requestData("A-001");
     }
@@ -235,10 +281,10 @@ class AppController {
             this.DATA.FACE, // 5 Face
             this.DATA.CAPTURE, // 6 Capture
             this.DATA.LITER, // 8 Liter
-            this.DEVICEID(), // 9 Device
-            this.location.getLatLong() // 10 Location
+            await this.location.getLatLong() // 10 Location
         ]
         const device = await this.device.get()
+        localStorage.setItem("dataSent", JSON.stringify(newData))
         const post = await this.request.post({
             type    : "addTRX",
             data    : newData,
@@ -276,9 +322,6 @@ class AppController {
     }
     log(param) {
         console.log("[AppCTRL] ", param)
-    }
-    DEVICEID(){
-        return localStorage.getItem("DVC")
     }
 }
 
@@ -1664,8 +1707,18 @@ class Device {
         this.input      = document.querySelector("#device-name")
         this.token      = null
     }
-    async get () {
-        const device = await JSON.parse(localStorage.getItem("device"))
+    set () {
+        const device = this.get()
+        console.log("ben", device)
+        if (!device) return localStorage.setItem("device", JSON.stringify({
+            NAMA    : "Bendhard16",
+            JWT     : null,
+            LAST    : Date.now(),
+            ID      : crypto.randomUUID()
+        }))
+    }
+    get () {
+        const device = JSON.parse(localStorage.getItem("device"))
         if (!device) return undefined
         return device
     }
@@ -1674,7 +1727,10 @@ class Device {
     }
     async onGoogleScuccess(JWT) {
         const device = await this.get()
+
+        //return console.log(device)
         device.JWT = JWT
+        this.update
         const res = await this.appCTRL.request.post({
             type    : "reload",
             device  : device
@@ -1693,10 +1749,12 @@ class Device {
             const device = res.data.device
             console.log("Device registered:", device)
             STATIC.toast("Device terdaftar", "success")
+            console.log(JWT)
             this.update({
                 NAMA    : device.NAMA,
                 AUTH    : device.AUTH,
-                LAST    : device.LAST
+                LAST    : device.LAST,
+                JWT     : JWT
             })
            this.appCTRL._init()
         }
@@ -1704,9 +1762,10 @@ class Device {
     async update(data){
         try {
             const device = await this.get()
-            device.AUTH = data.AUTH ? data.AUTH : device.AUTH
-            device.LAST = data.LAST ? data.LAST : device.LAST
-            device.NAMA = data.NAMA ? data.NAMA : device.NAMA
+            data.AUTH ? device.AUTH = data.AUTH : ""
+            data.LAST ? device.LAST =  data.LAST : ""
+            data.NAMA ? device.NAMA = data.NAMA : ""
+            data.JWT ? device.JWT  = data.JWT : ""
             localStorage.setItem("device", JSON.stringify(device))
         }
         catch (err) { 
