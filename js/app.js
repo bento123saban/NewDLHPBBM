@@ -41,13 +41,11 @@ class AppController {
             return STATIC.loaderStop()
         }
         this.location.onPermissionDenied( async () => {
-            console.log("Loc denied")
             STATIC.changeContent("location-access")
             document.querySelector("#location-access h4").textContent = "Aplikasi memerlukan akses LOKASI untuk melanjutkan."
             return STATIC.loaderStop()
         })
         this.location.onPermissionGranted(() => window.location.reload())
-        console.log(await this.location.getLatLong())
         
         this.driver.clearDRV()
         STATIC.resetPAYCODE()
@@ -1709,12 +1707,12 @@ class Device {
     }
     set () {
         const device = this.get()
-        console.log("ben", device)
         if (!device) return localStorage.setItem("device", JSON.stringify({
             NAMA    : "Bendhard16",
             JWT     : null,
-            LAST    : Date.now(),
-            ID      : crypto.randomUUID()
+            LAST    : "Bendhard16",
+            ID      : crypto.randomUUID(),
+            AUTH    : "Bendhard16"
         }))
     }
     get () {
@@ -1726,11 +1724,10 @@ class Device {
         return STATIC.changeContent("login-google")
     }
     async onGoogleScuccess(JWT) {
+        await this.update({
+            JWT : JWT
+        })
         const device = await this.get()
-
-        //return console.log(device)
-        device.JWT = JWT
-        this.update
         const res = await this.appCTRL.request.post({
             type    : "reload",
             device  : device
@@ -1767,6 +1764,7 @@ class Device {
             data.NAMA ? device.NAMA = data.NAMA : ""
             data.JWT ? device.JWT  = data.JWT : ""
             localStorage.setItem("device", JSON.stringify(device))
+            console.log(data)
         }
         catch (err) { 
             console.error("Gagal update device:", err)  
