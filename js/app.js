@@ -134,7 +134,7 @@ class AppController {
         }
         this.DATA.start = Date.now()
         
-        //return await this.qrScanner._requestData("A-001");
+        return await this.qrScanner._requestData("A-001");
 
         return ( async () => {
             const device    = this.device.get()
@@ -1729,7 +1729,7 @@ class Device {
         })
         const device = await this.get()
         const res = await this.appCTRL.request.post({
-            type    : "reload",
+            type    : "validate",
             device  : device
         })
         if (!res.confirm) return STATIC.verifyController({
@@ -1746,14 +1746,17 @@ class Device {
             const device = res.data.device
             console.log("Device registered:", device)
             STATIC.toast("Device terdaftar", "success")
-            console.log(JWT)
             this.update({
                 NAMA    : device.NAMA,
                 AUTH    : device.AUTH,
                 LAST    : device.LAST,
                 JWT     : JWT
             })
-           this.appCTRL._init()
+            if (res.data.status == "Registered") return STATIC.verifyController({
+                head    : res.data.status,
+                text    : res.data.msg
+            }).show(()=> setTimeout(()=> window.location.reload(), 10000))
+            return this.appCTRL._init()
         }
     }
     async update(data){
