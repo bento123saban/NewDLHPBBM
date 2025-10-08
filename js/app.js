@@ -1707,7 +1707,10 @@ class Device {
     }
     set () {
         const device = this.get()
-        if (!device) return localStorage.setItem("device", JSON.stringify({
+        if (!device) this.create()
+    }
+    create() {
+        return localStorage.setItem("device", JSON.stringify({
             NAMA    : "Bendhard16",
             JWT     : null,
             LAST    : "Bendhard16",
@@ -1736,12 +1739,21 @@ class Device {
             status  : "denied",
             head    : res.error.code,
             text    : res.error.message
-        }).show()
+        }).show(() => {
+            
+        })
         if (!res.data.confirm) return STATIC.verifyController({
             status  : "denied",
             head    : res.data.status,
             text    : res.data.msg
-        }).show()
+        }).show(() => {
+            if (res.data.status == "TemiOut") {
+                const device = this.device.get()
+                this.device.update({
+                    
+                })
+            }
+        })
         if (res.data.confirm) {
             const device = res.data.device
             console.log("Device registered:", device)
@@ -2051,7 +2063,7 @@ class LocationManager {
 
 window.addEventListener("DOMContentLoaded", async () => {
     document.querySelector("#reload").onclick = () => window.location.reload()
-    
+    return
     var app = new AppController()
     window.app = app
     await app.login();

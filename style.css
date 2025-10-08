@@ -19,6 +19,41 @@ body {
   color: var(--light);
 }
 
+
+#home-or {
+  position: relative;
+  width: 20px;
+  background-color: #000;
+  text-align: center;
+  margin: auto;
+}
+#home-or::before {
+  content: "";
+  width: 200px;
+  height: 0;
+  border-top: 2px solid white;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: -1;
+}
+#home-add {
+  border: 2px solid white !important;
+  border-radius: 5px;
+  padding-bottom: 7px !important;
+}
+#add h5 {
+  border: 2px solid white !important;
+  border-radius: 5px;
+  text-align: center;
+  text-transform: uppercase;
+  scale: 1.2;
+  cursor: pointer;
+}
+
+
+
 #reload {
   position: fixed;
   top: 3px;
