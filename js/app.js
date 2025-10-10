@@ -2070,7 +2070,7 @@ class add {
             KENDARAAN   : document.querySelector("#driver-kendaraan"),
             PELETON     : document.querySelector("#driver-peleton")
         }
-        
+
         this.car = {
             ID          : document.querySelector("#car-id"),
             NAMA        : document.querySelector("#car-nama"),
@@ -2087,7 +2087,10 @@ class add {
         this.captureTake    = document.querySelector("#capture-take")
         this.captureSwitch  = document.querySelector("#capture-switch")
         this.captureFlash   = document.querySelector("#capture-flash")
-        
+        this.canvasElement  = document.querySelector("canvas#capture-preview")
+        this.captureConfirm = document.querySelector("#capture-confirm")
+        this.captureRetry   = document.querySelector("#capture-retry")
+        this.previewer      = document.querySelector(".capture-preview")
     }
     evetHandler() {
         this.photoTakes.forEach(take => {
@@ -2163,7 +2166,8 @@ class add {
 
             if (!this.videoElement || this.videoElement.readyState < 3) throw new Error("Kamera belum siap, mohon tunggu sebentar.");
             
-            return this.takePictures();
+            return STATIC.changeContent("capture-cam");
+
         } catch (err) {
             STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');
             let counter = 5
@@ -2185,20 +2189,10 @@ class add {
         }
 
     }
-    takePictures() {
-        STATIC.changeContent("capture-cam");
-        
-    }
 
-    /**
-     * Fungsi untuk mengambil gambar (snapshot) dari video stream.
-     */
     capture() {
         // Pastikan elemen video dan canvas tersedia
-        if (!this.videoElement || !this.canvasElement) {
-            STATIC.toast("Error: Elemen video atau canvas tidak ditemukan.", 'error');
-            return;
-        }
+        if (!this.videoElement || !this.canvasElement) return STATIC.toast("Error: Elemen video atau canvas tidak ditemukan.", 'error');
 
         // Tentukan dimensi canvas (sesuaikan dengan resolusi video atau yang diinginkan)
         const width = this.videoElement.videoWidth;
@@ -2210,10 +2204,7 @@ class add {
 
         // Ambil konteks 2D dari canvas
         const context = this.canvasElement.getContext('2d');
-        if (!context) {
-            STATIC.toast("Error: Gagal mendapatkan konteks canvas.", 'error');
-            return;
-        }
+        if (!context) return STATIC.toast("Error: Gagal mendapatkan konteks canvas.", 'error');
 
         // Gambar frame saat ini dari elemen video ke canvas
         context.drawImage(this.videoElement, 0, 0, width, height);
