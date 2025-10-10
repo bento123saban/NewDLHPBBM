@@ -2070,6 +2070,7 @@ class add {
             KENDARAAN   : document.querySelector("#driver-kendaraan"),
             PELETON     : document.querySelector("#driver-peleton")
         }
+        
         this.car = {
             ID          : document.querySelector("#car-id"),
             NAMA        : document.querySelector("#car-nama"),
@@ -2080,8 +2081,13 @@ class add {
             WEEKLIMIT   : document.querySelector("#car-week-limit"),
             MONTHLIMIT  : document.querySelector("#car-month-limit")
         }
-        this.photoTakes = document.querySelectorAll(".photo-takes")
-        this.videoElement = document.querySelector("video#take-video")
+
+        this.photoTakes     = document.querySelectorAll(".photo-takes")
+        this.videoElement   = document.querySelector("video#take-video")
+        this.captureTake    = document.querySelector("#capture-take")
+        this.captureSwitch  = document.querySelector("#capture-switch")
+        this.captureFlash   = document.querySelector("#capture-flash")
+        
     }
     evetHandler() {
         this.photoTakes.forEach(take => {
@@ -2180,8 +2186,91 @@ class add {
 
     }
     takePictures() {
-        STATIC.changeContent("capture-cam")
+        STATIC.changeContent("capture-cam");
         
+    }
+
+    /**
+     * Fungsi untuk mengambil gambar (snapshot) dari video stream.
+     */
+    capture() {
+        // Pastikan elemen video dan canvas tersedia
+        if (!this.videoElement || !this.canvasElement) {
+            STATIC.toast("Error: Elemen video atau canvas tidak ditemukan.", 'error');
+            return;
+        }
+
+        // Tentukan dimensi canvas (sesuaikan dengan resolusi video atau yang diinginkan)
+        const width = this.videoElement.videoWidth;
+        const height = this.videoElement.videoHeight;
+        
+        // Atur ukuran canvas
+        this.canvasElement.width = width;
+        this.canvasElement.height = height;
+
+        // Ambil konteks 2D dari canvas
+        const context = this.canvasElement.getContext('2d');
+        if (!context) {
+            STATIC.toast("Error: Gagal mendapatkan konteks canvas.", 'error');
+            return;
+        }
+
+        // Gambar frame saat ini dari elemen video ke canvas
+        context.drawImage(this.videoElement, 0, 0, width, height);
+
+        // Konversi gambar di canvas menjadi format data URL (Base64)
+        // Gunakan 'image/jpeg' untuk kompresi, atau 'image/png' untuk kualitas tanpa kompresi
+        const imageDataURL = this.canvasElement.toDataURL('image/jpeg', 0.9); // 0.9 adalah kualitas
+
+        // LOGIKA SELANJUTNYA
+        // 1. Hentikan video stream (penting!)
+        this.stopCameraStream();
+
+        // 2. Pindah ke tampilan yang menampilkan hasil gambar
+        // Anda mungkin ingin menampilkan gambar di elemen <img> untuk review
+        STATIC.changeContent("review-image");
+        
+        // Asumsi ada elemen <img> untuk menampilkan hasil
+        const resultImage = document.querySelector("#result-image-preview");
+        if (resultImage) {
+             resultImage.src = imageDataURL;
+        }
+
+        // 3. Panggil fungsi untuk memproses gambar (misalnya, mengunggah atau memverifikasi)
+        this.processImage(imageDataURL);
+
+        // Kembalikan data URL jika diperlukan, meskipun proses sudah dilanjutkan
+        return imageDataURL;
+    }
+
+    /**
+     * Fungsi pembantu untuk menghentikan track dan stream kamera.
+     */
+    stopCameraStream() {
+        if (this.videoElement && this.videoElement.srcObject) {
+            const stream = this.videoElement.srcObject;
+            const tracks = stream.getTracks();
+
+            tracks.forEach(track => {
+                track.stop(); // Hentikan setiap track (video, audio, dll.)
+            });
+
+            this.videoElement.srcObject = null; // Lepaskan stream dari elemen video
+        }
+    }
+
+    /**
+     * Dummy function: Lanjutkan dengan pemrosesan gambar yang diambil
+     */
+    processImage(dataURL) {
+        // Di sini Anda akan mengimplementasikan:
+        // 1. Mengirim 'dataURL' ke server untuk verifikasi atau penyimpanan.
+        // 2. Menampilkan tombol "Ulangi" atau "Lanjutkan".
+        STATIC.loaderRun("Memproses gambar...");
+        
+        // Contoh penanganan (lanjutkan logika sesuai kebutuhan aplikasi Anda)
+        console.log("Gambar berhasil diambil. Siap diproses.");
+        // STATIC.api.uploadImage(dataURL).then(res => { ... })
     }
 }
 
