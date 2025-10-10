@@ -60,9 +60,92 @@
         </div>
     </div>
 
-    <div class="content  grid-center p-30" id="add-car">
-        <div>
+    <div class="content  grid-center p-30 dis-none" id="add-car">
+        <div class=" w-100 h-100 clr-white pb-2">
+            <h4 class="align-center clr-white p-10 uppercase">Add Vehicle</h4>
+            <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">ID Kendaraan</label>
+                <input type="text" id="car-id" class="borad-5 p-10 br-none w-100" placeholder="ID Kendaraan">
+            </div>
+            <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">Nama Kendaraan</label>
+                <input type="text" id="car-nama" class="borad-5 p-10 br-none w-100" placeholder="Nama Kendaraan">
+            </div>
+             <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">No. Polisi</label>
+                <input type="text" id="car-nopol" class="borad-5 p-10 br-none w-100" placeholder="No. Polisi">
+            </div>
+             <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">Peleton</label>
+                <input type="text" id="car-peleton" class="borad-5 p-10 br-none w-100" placeholder="Peleton">
+            </div>
+             <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">Reset Date</label>
+                <input type="text" id="car-reset-date" class="borad-5 p-10 br-none w-100" placeholder="Reset Date">
+            </div>
             
+             <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">Day Limit (Liter)</label>
+                <input type="text" id="car-day-limit" class="borad-5 p-10 br-none w-100" placeholder="Day Limit">
+            </div>
+            
+            
+             <div class="form-group mt-1 mb-2">
+                <label for="car-id" class="pb-1 dis-block">Week Limit (Liter)</label>
+                <input type="text" id="car-week-limit" class="borad-5 p-10 br-none w-100" placeholder="Week Limit">
+            </div>
+            
+             <div class="form-group mt-1 mb-4   ">
+                <label for="car-id" class="pb-1 dis-block">Month Limit (Liter)</label>
+                <input type="text" id="car-month-limit" class="borad-5 p-10 br-none w-100" value="200" placeholder="Month Limit">
+            </div>
+            
+            <button class="blue w-100 p-15 borad-5 fz-20 bolder uppercase pointer photo-takes">Take Photo &nbsp; &nbsp;<i class="fas fa-image"></i></button>
+        </div>
+    </div>
+
+    <div class="content  grid-center p-30 dis-none" id="add-driver">
+        <div class=" w-100 h-100 clr-white pb-2">
+            <h4 class="align-center clr-white p-10 uppercase">Add Driver</h4>
+            <div class="form-group mt-1 mb-2">
+                <label for="driver-id" class="pb-1 dis-block">NIP Driver</label>
+                <input type="number" id="driver-id" class="borad-5 p-10 br-none w-100" placeholder="NIP Driver">
+            </div>
+            <div class="form-group mt-1 mb-2">
+                <label for="driver-nama" class="pb-1 dis-block">Nama Driver</label>
+                <input type="text" id="driver-nama" class="borad-5 p-10 br-none w-100" placeholder="Nama Driver">
+            </div>
+            <div class="form-group mt-1 mb-2">
+                <label for="driver-peleton" class="pb-1 dis-block">Peleton</label>
+                <input type="text" id="driver-peleton" class="borad-5 p-10 br-none w-100" placeholder="Nama Driver">
+            </div>
+            <div class="form-group mt-1 mb-2">
+                <label for="driver-kendaraan" class="pb-1 dis-block">Kendaraan</label>
+                <input type="text" id="driver-kendaraan" class="borad-5 p-10 br-none w-100" placeholder="Nama Driver">
+            </div>
+            <div class="form-group mt-1 mb-2">
+                <label for="driver-password" class="pb-1 dis-block">Password</label>
+                <input type="password" id="driver-password" class="borad-5 p-10 br-none w-100" placeholder="Password">
+            </div>
+            <div class="form-group mt-1 mb-4">
+                <label for="driver-ulangi-password" class="pb-1 dis-block">Ulangi Password</label>
+                <input type="password" id="driver-ulangi-password" class="borad-5 p-10 br-none w-100" placeholder="Ulangi Password">
+            </div>
+            
+            <button class="blue w-100 p-15 borad-5 fz-20 bolder uppercase pointer photo-takes">Take Photo &nbsp; &nbsp;<i class="fas fa-image"></i></button>
+        </div>
+    </div>
+
+    <div class="content grid-center p-20 dis-non" id="capture-cam">
+        <div class="hidden relative w-100 h-100 borad-10" id="capture-content">
+            <div class="capture-video-frame w-100 h-100 ">
+                <video src="" id="take-video"></video>
+            </div>
+            <div class="capture-buttons w-100 flex-center gap-20">
+                <button id="capture-switch"><i class=" fas fa-camera-rotate"></i></button>
+                <button id="capture-take"><i class=" fas fa-image"></i></button>
+                <button id="capture-flash" class="off"><i class=" fas fa-bolt"></i></button>
+            </div>
         </div>
     </div>
 

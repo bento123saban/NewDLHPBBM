@@ -2059,6 +2059,132 @@ class LocationManager {
     }
 }
 
+class add {
+    constructor () {
+        this.active = null,
+        this.driver = {
+            ID          : document.querySelector("#driver-id"),
+            NAMA        : document.querySelector("#driver-nama"),
+            PASSWORD    : document.querySelector("#driver-password"),
+            PASSWORD2   : document.querySelector("#driver-ulangi-password"),
+            KENDARAAN   : document.querySelector("#driver-kendaraan"),
+            PELETON     : document.querySelector("#driver-peleton")
+        }
+        this.car = {
+            ID          : document.querySelector("#car-id"),
+            NAMA        : document.querySelector("#car-nama"),
+            NOPOL       : document.querySelector("#car-nopol"),
+            PELETON     : document.querySelector("#car-peleton"),
+            RESETDATE   : document.querySelector("#car-reset-date"),
+            DAYLIMIT    : document.querySelector("#car-day-limit"),
+            WEEKLIMIT   : document.querySelector("#car-week-limit"),
+            MONTHLIMIT  : document.querySelector("#car-month-limit")
+        }
+        this.photoTakes = document.querySelectorAll(".photo-takes")
+        this.videoElement = document.querySelector("video#take-video")
+    }
+    evetHandler() {
+        this.photoTakes.forEach(take => {
+            take.onclick = () => {
+                let data = undefined
+                if (take.dataset.form == "car") data = this.getAndVerifyCarData()
+                if (take.dataset.form == "driver") data = this.getAndVerifyDriverData()
+                if (!data) return
+                return this.setCamera()
+            }
+        })
+    }
+    getAndVerifyDriverData () {
+        const data = {
+            ID          : this.driver.ID.value.trim() ?? "",
+            NAMA        : this.driver.NAMA.value.trim() ?? "",
+            PASSWORD    : this.driver.PASSWORD.value.trim() ?? "",
+            PASSWORD2   : this.driver.PASSWORD2.value.trim() ?? "",
+            KENDARAAN   : this.driver.KENDARAAN.value.trim() ?? "",
+            PELETON     : this.driver.PELETON.value.trim() ?? ""
+        }
+        let boolean = true
+        Object.keys(data).forEach(label => {
+            if (label == "" || !label) {
+                this.driver[label].placeholder = "Wajib Diisi"
+                boolean = false
+            }
+            else this.driver[label].placeholder = label.id.toUpperCase()
+        })
+        if (!boolean) return undefined
+        return data
+    }
+    getAndVerifyCarData () {
+        const data = {
+            ID          : this.car.ID.value.trim() ?? "",
+            NAMA        : this.car.NAMA.value.trim() ?? "",
+            NOPOL       : this.car.NOPOL.value.trim() ?? "",
+            PELETON     : this.car.PELETON.value.trim() ?? "",
+            RESETDATE   : this.car.RESETDATE.value.trim() ?? "",
+            DAYLIMIT    : this.car.DAYLIMIT.value.trim() ?? "",
+            WEEKLIMIT   : this.car.WEEKLIMIT.value.trim() ?? "",
+            MONTHLIMIT  : this.car.MONTHLIMIT.value.trim() ?? ""
+        }
+        let boolean = true
+        Object.keys(data).forEach(label => {
+            if (label == "" || !label) {
+                this.car[label].placeholder = "Wajib Diisi"
+                boolean = false
+            }
+            else this.car[label].placeholder = label.id.toUpperCase()
+        })
+        if (!boolean) return undefined
+        return data
+    }
+    async setCamera() {
+        STATIC.loaderRun("Setup Camera")
+
+        const tryInerval = null
+        try {
+            const hasMediaDevices = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+            if (!hasMediaDevices) throw new Error("Perangkat tidak mendukung kamera.");
+    
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user" },
+                audio: false
+            }).catch(err => {throw new Error("Akses kamera ditolak atau tidak tersedia: " + err.message);});
+    
+            if (!stream) throw new Error("Stream kamera tidak tersedia.");
+    
+            this.videoElement.srcObject = stream;
+    
+            await this.videoElement.play().catch(err => {throw new Error("Gagal memutar video kamera: " + err.message);});
+
+            if (!this.videoElement || this.videoElement.readyState < 3) throw new Error("Kamera belum siap, mohon tunggu sebentar.");
+            
+            return this.takePictures();
+        } catch (err) {
+            STATIC.toast("Kamera gagal dinyalakan: " + err.message, 'error');
+            let counter = 5
+            STATIC.verifyController({
+                status  : "denied",
+                head    : "Failed",
+                text    : err + "(" + counter + ")"
+            }).show(()=> {
+                let interval
+                tryInerval = setInterval(()=> {
+                    counter --
+                    if (counter == 0) {
+                        clearInterval(tryInerval)
+                        return this.setCamera()
+                    }
+                    document.querySelector("#verify span").innerHTML = err + "(" + counter + ")"
+                })
+            })
+        }
+
+    }
+    takePictures() {
+        STATIC.changeContent("capture-cam")
+        
+    }
+}
+
 
 
 window.addEventListener("DOMContentLoaded", async () => {
